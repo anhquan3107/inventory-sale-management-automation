@@ -1,0 +1,1 @@
+# inventory-sale-management-automation
