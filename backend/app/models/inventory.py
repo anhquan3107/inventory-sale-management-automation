@@ -1,14 +1,26 @@
-from sqlalchemy import Column, Integer, ForeignKey, DateTime
-from sqlalchemy.orm import relationship
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Integer, String, Float, Boolean, DateTime, ForeignKey, Numeric
 from sqlalchemy.sql import func
 from database.base import Base
+
+if TYPE_CHECKING:
+    from models.product import Product
 
 class Inventory(Base):
     __tablename__ = "inventory"
 
-    id = Column(Integer, primary_key=True)
-    product_id = Column(Integer, ForeignKey("products.id"), unique=True)
-    quantity_on_hand = Column(Integer, default=0)
-    last_updated = Column(DateTime(timezone=True), server_default=func.now())
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(
+        ForeignKey("products.id"),
+        unique=True,
+        nullable=False
+    )
+    quantity_on_hand: Mapped[int] = mapped_column(Integer, default=0)
+    last_updated: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
-    product = relationship("Product")
+    product: Mapped[Product] = relationship("Product")
