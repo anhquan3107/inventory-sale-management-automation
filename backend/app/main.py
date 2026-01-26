@@ -10,6 +10,10 @@ from database.base import Base
 
 from routers.sales import router as sales_router
 from routers.products import router as product_router
+from routers.inventory import router as inventory_router
+from routers.inventory_log import router as inventory_log_router
+
+
 import models
 
 
@@ -37,6 +41,10 @@ app = FastAPI(
 
 app.include_router(sales_router)
 app.include_router(product_router)
+app.include_router(inventory_log_router) #Before inventory router
+app.include_router(inventory_router)
+
+
 
 
 

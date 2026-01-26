@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Integer, String, Float, Boolean, DateTime, ForeignKey, Numeric
+from sqlalchemy import Index, Integer, String, Float, Boolean, DateTime, ForeignKey, Numeric
 from sqlalchemy.sql import func
 from database.base import Base
 
@@ -24,3 +24,7 @@ class Inventory(Base):
     )
 
     product: Mapped[Product] = relationship("Product")
+
+    __table_args__ = (
+        Index("idx_inventory_product_id", "product_id"),
+    )

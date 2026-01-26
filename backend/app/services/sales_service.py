@@ -1,41 +1,41 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
 from models.sales_order import SalesOrder
 from models.sales_item import SalesItem
 from models.inventory import Inventory
 from models.inventory_log import InventoryLog
+from models.enums.inventory_log_type import InventoryLogType
 
 
-def create_sale(db: Session, items: list, sales_channel: str):
-    """
-    items = [
-        {"product_id": 1, "quantity": 2, "unit_price": 100},
-        ...
-    ]
-    """
-
+def create_sale(
+    db: Session,
+    items: list[dict],
+    sales_channel: str
+) -> SalesOrder:
     try:
-        # 1️Create sales order
         order = SalesOrder(
             sales_channel=sales_channel,
             total_amount=0
         )
         db.add(order)
-        db.flush()  # get order.id without commit
+        db.flush()
 
         total_amount = 0
 
-        # Process each item
         for item in items:
             product_id = item["product_id"]
             quantity = item["quantity"]
             unit_price = item["unit_price"]
 
-            # Check inventory
-            inventory = db.query(Inventory).filter(
-                Inventory.product_id == product_id
-            ).with_for_update().first()
+            stmt_inventory = (
+                select(Inventory)
+                .where(Inventory.product_id == product_id)
+                .with_for_update()
+            )
+
+            inventory = db.execute(stmt_inventory).scalars().first()
 
             if not inventory:
                 raise ValueError("Inventory not found")
@@ -43,7 +43,11 @@ def create_sale(db: Session, items: list, sales_channel: str):
             if inventory.quantity_on_hand < quantity:
                 raise ValueError("Not enough stock")
 
-            #  Create sales item
+            before_qty = inventory.quantity_on_hand
+            after_qty = before_qty - quantity
+
+            inventory.quantity_on_hand = after_qty
+
             sales_item = SalesItem(
                 sales_order_id=order.id,
                 product_id=product_id,
@@ -53,28 +57,24 @@ def create_sale(db: Session, items: list, sales_channel: str):
             )
             db.add(sales_item)
 
-            # Update inventory
-            inventory.quantity_on_hand -= quantity
-
-            # Insert inventory log
             log = InventoryLog(
                 product_id=product_id,
                 change_quantity=-quantity,
-                log_type="SALE",
+                quantity_before=before_qty,
+                quantity_after=after_qty,
+                log_type=InventoryLogType.SALE.value,
                 reference_id=order.id
             )
             db.add(log)
 
             total_amount += sales_item.line_total
 
-        # Update order total
         order.total_amount = total_amount
 
-        # Commit everything
         db.commit()
-
+        db.refresh(order)
         return order
 
-    except (SQLAlchemyError, ValueError) as e:
+    except (SQLAlchemyError, ValueError):
         db.rollback()
-        raise e
+        raise
