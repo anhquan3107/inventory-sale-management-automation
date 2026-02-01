@@ -1,8 +1,13 @@
+from __future__ import annotations
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Index, Integer, String, Float, Boolean, DateTime, ForeignKey, Numeric
 from sqlalchemy.sql import func
 from database.base import Base
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from models import SalesOrder
 
 class SalesItem(Base):
     __tablename__ = "sales_items"
@@ -18,4 +23,9 @@ class SalesItem(Base):
         Index("idx_sales_items_order_id", "sales_order_id"),
         Index("idx_sales_items_product_id", "product_id"),
     )
+    order: Mapped["SalesOrder"] = relationship(
+            back_populates="items"
+    )
+
+
 
