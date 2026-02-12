@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
+from decimal import Decimal
 
 from models.sales_order import SalesOrder
 from models.sales_item import SalesItem
@@ -17,12 +18,12 @@ def create_sale(
     try:
         order = SalesOrder(
             sales_channel=sales_channel,
-            total_amount=0
+            total_amount=Decimal("0.00")
         )
         db.add(order)
         db.flush()
 
-        total_amount = 0
+        total_amount = Decimal("0.00")
 
         for item in items:
             product_id = item["product_id"]
