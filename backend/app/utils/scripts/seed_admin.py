@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+
 BASE_DIR = Path(__file__).resolve().parents[2]
 sys.path.append(str(BASE_DIR))
 
@@ -9,8 +10,6 @@ from passlib.context import CryptContext
 
 from database.session import SessionLocal
 from models import User
-
-
 
 
 # Password hashing configuration
@@ -30,6 +29,7 @@ def seed_admin_user():
 
     try:
         admin_username = "admin"
+        admin_email = "admin@gmail.com"
         admin_password = "admin123"  # CHANGE AFTER FIRST LOGIN
         admin_role = "admin"
 
@@ -44,9 +44,11 @@ def seed_admin_user():
         # Create admin user
         admin_user = User(
             username=admin_username,
+            email=admin_email,
             password_hash=hash_password(admin_password),
             role=admin_role,
-            is_active=True
+            is_active=True,
+            must_change_password=True  # Force password change on first login
         )
 
         db.add(admin_user)
@@ -55,6 +57,7 @@ def seed_admin_user():
 
         print("Admin user created successfully.")
         print(f"Username: {admin_username}")
+        print(f"Email: {admin_email}")
         print("Password: admin123 (please change after login)")
 
     except Exception as e:

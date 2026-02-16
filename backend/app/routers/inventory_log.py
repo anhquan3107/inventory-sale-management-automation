@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database.dependencies import get_db
-from services.inventory_log_service import get_inventory_logs
+from services.inventory_log import get_inventory_logs
 from schemas.inventory_log import InventoryLogResponse
 from models.enums.inventory_log_type import InventoryLogType
 

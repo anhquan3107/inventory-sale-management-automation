@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from database.dependencies import get_db
-from services.sales_read_service import list_sales, get_sale_detail
+from services.sales_read import list_sales, get_sale_detail
 from schemas.sales_read import SaleRead, SaleDetailRead
 
 router = APIRouter(prefix="/sales", tags=["Sales"])

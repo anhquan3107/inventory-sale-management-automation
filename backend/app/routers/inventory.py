@@ -7,7 +7,7 @@ from schemas.inventory import (
     InventoryAdjustRequest,
     InventoryResponse
 )
-from services.inventory_service import (
+from services.inventory import (
     init_inventory,
     list_inventory,
     get_inventory,

@@ -7,7 +7,10 @@ export interface AuthContextType {
   user: UserResponse | null
   isAuthenticated: boolean
   loading: boolean
-  login: (username: string, password: string) => Promise<void>
+  login: (
+    identifier: string,
+    password: string,
+  ) => Promise<{ must_change_password: boolean }>
   logout: () => void
 }
 

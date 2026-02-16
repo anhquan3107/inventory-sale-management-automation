@@ -39,13 +39,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     initializeAuth()
   }, [])
 
-  const login = async (username: string, password: string) => {
-    const response = await authApi.login({ username, password })
+  const login = async (identifier: string, password: string) => {
+    const response = await authApi.login({ identifier, password })
 
     localStorage.setItem('access_token', response.access_token)
 
     const userData = await authApi.getMe()
     setUser(userData)
+
+    return { must_change_password: response.must_change_password }
   }
 
   const logout = () => {

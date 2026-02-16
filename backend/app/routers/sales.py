@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database.dependencies import get_db
-from services.sales_service import create_sale
+from services.sales import create_sale
 from schemas.sales import CreateSaleRequest, CreateSaleResponse
 
 

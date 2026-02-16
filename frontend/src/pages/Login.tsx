@@ -68,9 +68,9 @@ const Login = () => {
 
     let isValid = true
 
-    if (!username.value || username.value.length < 3) {
+    if (!username.value || username.value.trim().length < 3) {
       setUsernameError(true)
-      setUsernameErrorMessage('Username must be at least 3 characters.')
+      setUsernameErrorMessage('Please enter a valid username or email.')
       isValid = false
     } else {
       setUsernameError(false)
@@ -95,13 +95,18 @@ const Login = () => {
     if (!validateInputs()) return
 
     const data = new FormData(event.currentTarget)
-    const username = data.get('username') as string
+    const identifier = data.get('username') as string
     const password = data.get('password') as string
 
     try {
       setSubmitting(true)
-      await login(username, password)
-      navigate('/dashboard', { replace: true })
+      const result = await login(identifier, password)
+
+      if (result.must_change_password) {
+        navigate('/change-password', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     } finally {
       setSubmitting(false)
     }
@@ -120,11 +125,11 @@ const Login = () => {
             sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
           >
             <FormControl>
-              <FormLabel htmlFor='username'>Username</FormLabel>
+              <FormLabel htmlFor='username'>Username or Email</FormLabel>
               <TextField
                 id='username'
                 name='username'
-                placeholder='Enter your username'
+                placeholder='Enter your username or email'
                 fullWidth
                 required
                 error={usernameError}

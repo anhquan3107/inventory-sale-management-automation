@@ -15,6 +15,7 @@ from routers.inventory import router as inventory_router
 from routers.inventory_log import router as inventory_log_router
 from routers.sales_read import router as sales_read_router
 from routers.auth import router as auth_router
+from routers.admin import router as admin_router
 
 
 import models
@@ -61,6 +62,7 @@ app.include_router(inventory_log_router) #Before inventory router
 app.include_router(inventory_router)
 app.include_router(sales_read_router)
 app.include_router(auth_router)
+app.include_router(admin_router)
 
 
 

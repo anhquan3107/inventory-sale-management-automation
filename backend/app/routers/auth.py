@@ -5,10 +5,12 @@ from database.dependencies import get_db
 from schemas.auth import (
     LoginRequest,
     LoginResponse,
-    UserMeResponse
+    UserMeResponse,
+    ChangePasswordRequest
 )
-from services.auth_service import (
+from services.auth import (
     authenticate_user,
+    change_password,
     get_user_by_id
 )
 from utils.security.bearer import require_auth
@@ -23,6 +25,10 @@ router = APIRouter(
     "/login",
     response_model=LoginResponse
 )
+@router.post(
+    "/login",
+    response_model=LoginResponse
+)
 def login(
     payload: LoginRequest,
     db: Session = Depends(get_db)
@@ -30,7 +36,7 @@ def login(
     try:
         return authenticate_user(
             db,
-            payload.username,
+            payload.identifier,
             payload.password
         )
     except ValueError:
@@ -38,6 +44,7 @@ def login(
             status_code=401,
             detail="Invalid credentials"
         )
+
 
 
 @router.get(
@@ -63,3 +70,25 @@ def get_me(
         "username": user.username,
         "role": user.role
     }
+
+@router.put(
+    "/change-password"
+)
+def update_password(
+    payload: ChangePasswordRequest,
+    current_user: dict = Depends(require_auth),
+    db: Session = Depends(get_db)
+):
+    try:
+        change_password(
+            db,
+            int(current_user["sub"]),
+            payload.current_password,
+            payload.new_password
+        )
+        return {"message": "Password updated successfully"}
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )

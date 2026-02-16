@@ -7,7 +7,7 @@ from schemas.products import (
     UpdateProductRequest,
     ProductResponse
 )
-from services.product_service import (
+from services.product import (
     create_product,
     get_product,
     list_products,
