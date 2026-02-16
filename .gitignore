@@ -71,3 +71,6 @@ build/
 dist/
 tmp/
 temp/
+
+.github/*
+copilot-instructions.md
