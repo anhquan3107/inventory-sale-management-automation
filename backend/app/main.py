@@ -25,8 +25,8 @@ import models
 async def lifespan(app: FastAPI):
     for i in range(10):
         try:
-            Base.metadata.create_all(bind=engine)
-            print("Database connected, tables created")
+            with engine.connect():
+                print("Database connected")
             break
         except OperationalError:
             print(f"Database not ready, retry {i+1}/10")
