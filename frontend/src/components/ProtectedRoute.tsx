@@ -1,16 +1,10 @@
 // src/components/ProtectedRoute.tsx
 
-import { Navigate } from 'react-router-dom'
+import { Navigate, Outlet } from 'react-router-dom'
 import { CircularProgress, Box } from '@mui/material'
 import { useAuth } from '../hooks/use-auth'
 
-import type { ReactElement } from 'react'
-
-interface ProtectedRouteProps {
-  children: ReactElement
-}
-
-const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+const ProtectedRoute = () => {
   const { isAuthenticated, loading } = useAuth()
 
   if (loading) {
@@ -30,7 +24,7 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     return <Navigate to='/login' replace />
   }
 
-  return children
+  return <Outlet />
 }
 
 export default ProtectedRoute
