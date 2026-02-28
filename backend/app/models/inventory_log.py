@@ -8,10 +8,10 @@ class InventoryLog(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    change_quantity: Mapped[int] = mapped_column(Integer)
+    change_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     quantity_before: Mapped[int] = mapped_column(Integer, nullable=False)
     quantity_after: Mapped[int] = mapped_column(Integer, nullable=False)
-    log_type: Mapped[str] = mapped_column(String)  # SALE, RESTOCK, ADJUSTMENT
+    log_type: Mapped[str] = mapped_column(String, nullable=False)  # SALE, RESTOCK, ADJUSTMENT
     reference_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     log_date: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -14,7 +14,7 @@ class Inventory(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(
-        ForeignKey("products.id"),
+        ForeignKey("products.id", ondelete="CASCADE"),
         unique=True,
         nullable=False
     )

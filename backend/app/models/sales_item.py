@@ -15,9 +15,9 @@ class SalesItem(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     sales_order_id: Mapped[int] = mapped_column(ForeignKey("sales_orders.id"))
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
-    quantity: Mapped[int] = mapped_column(Integer)
-    unit_price: Mapped[Decimal] = mapped_column(Numeric(12,2))
-    line_total: Mapped[Decimal] = mapped_column(Numeric(12,2))
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12,2), nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(12,2), nullable=False)
 
     __table_args__ = (
         Index("idx_sales_items_order_id", "sales_order_id"),
