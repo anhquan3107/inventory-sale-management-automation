@@ -32,8 +32,11 @@ const summaryCards = [
 const Dashboard = () => {
   return (
     <Box>
-      <Typography variant='h5' sx={{ fontWeight: 700, mb: 3 }}>
+      <Typography variant='h5' sx={{ mb: 0.5 }}>
         Dashboard
+      </Typography>
+      <Typography variant='body2' sx={{ color: '#666666', mb: 3 }}>
+        Snapshot of business performance and inventory alerts.
       </Typography>
 
       <Grid container spacing={3}>
@@ -43,7 +46,6 @@ const Dashboard = () => {
               elevation={0}
               sx={{
                 p: 3,
-                border: '1px solid #e0e0e0',
                 borderRadius: 2,
                 display: 'flex',
                 alignItems: 'center',

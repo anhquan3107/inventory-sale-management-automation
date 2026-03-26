@@ -37,6 +37,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
 
     initializeAuth()
+
+    const handleUnauthorized = () => {
+      setUser(null)
+      setLoading(false)
+    }
+
+    window.addEventListener('auth:unauthorized', handleUnauthorized)
+
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized)
+    }
   }, [])
 
   const login = async (identifier: string, password: string) => {
