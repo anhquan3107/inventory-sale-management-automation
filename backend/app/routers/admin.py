@@ -5,6 +5,7 @@ from database.dependencies import get_db
 from schemas.admin import AdminResetPasswordRequest
 from services.admin import admin_reset_password
 from utils.security.bearer import require_auth
+from models.enums.user_role import UserRole
 
 
 router = APIRouter(
@@ -22,7 +23,7 @@ def reset_user_password(
     current_user: dict = Depends(require_auth),
     db: Session = Depends(get_db)
 ):
-    if current_user["role"] != "admin":
+    if current_user["role"] != UserRole.ADMIN.value:
         raise HTTPException(
             status_code=403,
             detail="Not authorized"

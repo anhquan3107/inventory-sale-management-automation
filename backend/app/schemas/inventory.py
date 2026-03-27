@@ -18,3 +18,6 @@ class InventoryResponse(BaseModel):
     product_id: int
     quantity_on_hand: int
 
+    class Config:
+        from_attributes = True
+

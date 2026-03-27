@@ -5,6 +5,7 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   access_token: string
+  refresh_token: string
   token_type: string
   must_change_password: boolean
 }
@@ -17,5 +18,6 @@ export interface ChangePasswordRequest {
 export interface UserResponse {
   id: number
   username: string
-  email?: string
+  email: string
+  role: string
 }

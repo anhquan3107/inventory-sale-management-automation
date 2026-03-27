@@ -1,5 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
+from models.enums.inventory_log_type import InventoryLogType
 
 
 class InventoryLogResponse(BaseModel):
@@ -8,7 +9,7 @@ class InventoryLogResponse(BaseModel):
     change_quantity: int
     quantity_before: int
     quantity_after: int
-    log_type: str
+    log_type: InventoryLogType
     reference_id: int | None
     log_date: datetime
 
