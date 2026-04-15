@@ -23,4 +23,11 @@ export const API_PATHS = {
     LIST: '/sales',
     BY_ID: (orderId: number) => `/sales/${orderId}`,
   },
+  DASHBOARD: {
+    SUMMARY: '/dashboard/summary',
+    REVENUE_TREND: '/dashboard/revenue-trend',
+    TOP_PRODUCTS: '/dashboard/top-products',
+    LOW_STOCK: '/dashboard/low-stock',
+    RECENT_SALES: '/dashboard/recent-sales',
+  },
 }
