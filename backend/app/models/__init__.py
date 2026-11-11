@@ -4,3 +4,6 @@ from .inventory_log import InventoryLog
 from .sales_order import SalesOrder
 from .sales_item import SalesItem
 from .user import User
+from .forecast_run import ForecastRun
+from .forecast_prediction import ForecastPrediction
+from .forecast_accuracy import ForecastAccuracy
