@@ -1,118 +1,89 @@
-from __future__ import annotations
-
 from datetime import date, timedelta
 
-from sqlalchemy import Date, cast, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from models.forecast_evidence import ForecastCoverage
 from models.product import Product
 from models.sales_item import SalesItem
 from models.sales_order import SalesOrder
-
-
-SUPPORTED_GRANULARITIES = {"weekly", "monthly"}
-
-
-def _month_start(value: date) -> date:
-    return value.replace(day=1)
-
-
-def _add_months(value: date, months: int) -> date:
-    year = value.year + (value.month - 1 + months) // 12
-    month = (value.month - 1 + months) % 12 + 1
-    return date(year, month, 1)
 
 
 def add_period(value: date, granularity: str, steps: int = 1) -> date:
     if granularity == "weekly":
         return value + timedelta(weeks=steps)
     if granularity == "monthly":
-        return _add_months(value, steps)
+        year = value.year + (value.month - 1 + steps) // 12
+        month = (value.month - 1 + steps) % 12 + 1
+        return date(year, month, 1)
     raise ValueError("Unsupported granularity")
 
 
-def _normalize_period_start(value: date, granularity: str) -> date:
+def period_start(value: date, granularity: str) -> date:
     if granularity == "weekly":
         return value - timedelta(days=value.weekday())
     if granularity == "monthly":
-        return _month_start(value)
+        return value.replace(day=1)
     raise ValueError("Unsupported granularity")
 
 
+def build_future_periods(last_period_start: date, granularity: str, horizon: int) -> list[tuple[date, date]]:
+    return [(add_period(last_period_start, granularity, step),
+             add_period(last_period_start, granularity, step + 1) - timedelta(days=1))
+            for step in range(1, horizon + 1)]
+
+
 def list_active_product_ids(db: Session, product_ids: list[int] | None = None) -> list[int]:
-    stmt = select(Product.id).where(Product.is_active == True)
-
-    if product_ids:
+    if product_ids is not None and (not product_ids or any(p < 1 for p in product_ids)):
+        raise ValueError("product_ids must be omitted or contain positive product IDs")
+    stmt = select(Product.id).where(Product.is_active.is_(True)).order_by(Product.id)
+    if product_ids is not None:
         stmt = stmt.where(Product.id.in_(product_ids))
-
-    rows = db.execute(stmt).all()
-    ids = [row.id for row in rows]
-
-    if product_ids:
-        missing_ids = sorted(set(product_ids) - set(ids))
-        if missing_ids:
-            raise ValueError(f"Active products not found: {missing_ids}")
-
+    ids = list(db.scalars(stmt))
+    missing = sorted(set(product_ids or []) - set(ids))
+    if missing:
+        raise ValueError(f"Active products not found: {missing}")
     return ids
 
 
-def get_period_demand_history(
-    db: Session,
-    product_id: int,
-    granularity: str,
-    periods_back: int,
-) -> list[dict]:
-    if granularity not in SUPPORTED_GRANULARITIES:
-        raise ValueError("Unsupported granularity")
-
-    if periods_back < 2:
-        raise ValueError("periods_back must be at least 2")
-
-    today = date.today()
-    current_period = _normalize_period_start(today, granularity)
-    first_period = add_period(current_period, granularity, -periods_back + 1)
-
-    period_expr = cast(func.date_trunc(granularity[:-2], SalesOrder.order_date), Date)
-
-    stmt = (
-        select(
-            period_expr.label("period_start"),
-            func.coalesce(func.sum(SalesItem.quantity), 0).label("quantity"),
-        )
-        .join(SalesOrder, SalesItem.sales_order_id == SalesOrder.id)
-        .where(
-            SalesItem.product_id == product_id,
-            cast(SalesOrder.order_date, Date) >= first_period,
-        )
-        .group_by(period_expr)
-        .order_by(period_expr)
-    )
-
-    rows = db.execute(stmt).all()
-    quantity_by_period = {row.period_start: float(row.quantity) for row in rows}
-
-    series: list[dict] = []
-    pointer = first_period
-
-    while pointer <= current_period:
-        series.append(
-            {
-                "period_start": pointer,
-                "quantity": quantity_by_period.get(pointer, 0.0),
-            }
-        )
+def get_history(db: Session, product_id: int, granularity: str, as_of_date: date) -> dict:
+    cutoff = period_start(as_of_date, granularity)
+    coverage = db.get(ForecastCoverage, product_id)
+    base = {"status": "unknown_coverage", "rows": [], "cutoff": cutoff.isoformat(),
+            "dataset_version": None, "source": None}
+    if coverage is None:
+        return base
+    base.update(dataset_version=coverage.dataset_version, source=coverage.source,
+                coverage_from=coverage.observed_from.isoformat(),
+                coverage_through=coverage.observed_through.isoformat(),
+                configuration=coverage.configuration)
+    if coverage.observed_through < cutoff - timedelta(days=1):
+        base["status"] = "coverage_ends_before_cutoff"
+        return base
+    first = period_start(coverage.observed_from, granularity)
+    if first < coverage.observed_from:
+        first = add_period(first, granularity)
+    # Fixed lookback does not change when the requested prediction horizon changes.
+    first = max(first, add_period(cutoff, granularity, -156 if granularity == "weekly" else -60))
+    # PostgreSQL timestamps are stored with time zones; bucket them in UTC explicitly.
+    order_timestamp = (func.timezone("UTC", SalesOrder.order_date)
+                       if db.get_bind().dialect.name == "postgresql" else SalesOrder.order_date)
+    daily = func.date(order_timestamp)
+    rows = db.execute(
+        select(daily.label("day"), func.sum(SalesItem.quantity).label("quantity"))
+        .join(SalesOrder, SalesOrder.id == SalesItem.sales_order_id)
+        .where(SalesItem.product_id == product_id, daily >= first.isoformat(), daily < cutoff.isoformat())
+        .group_by(daily)
+    ).all()
+    quantities = {}
+    for row in rows:
+        day = date.fromisoformat(row.day) if isinstance(row.day, str) else row.day
+        bucket = period_start(day, granularity)
+        quantities[bucket] = quantities.get(bucket, 0.0) + float(row.quantity)
+    series = []
+    pointer = first
+    while pointer < cutoff:
+        series.append({"period_start": pointer, "quantity": quantities.get(pointer, 0.0)})
         pointer = add_period(pointer, granularity)
-
-    return series
-
-
-def build_future_periods(last_period_start: date, granularity: str, horizon: int) -> list[tuple[date, date]]:
-    periods: list[tuple[date, date]] = []
-
-    for step in range(1, horizon + 1):
-        period_start = add_period(last_period_start, granularity, step)
-        next_start = add_period(period_start, granularity)
-        period_end = next_start - timedelta(days=1)
-        periods.append((period_start, period_end))
-
-    return periods
+    base.update(status="ready", rows=series)
+    return base

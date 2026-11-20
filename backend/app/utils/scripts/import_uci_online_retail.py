@@ -1,233 +1,139 @@
-from __future__ import annotations
-
+"""Versioned forecasting-only import; no invented stock or supplier information."""
 import argparse
 import csv
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
+from hashlib import sha256
+import json
 from pathlib import Path
 import sys
+
+sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-sys.path.append(str(BASE_DIR))
-
-from database.session import SessionLocal
-from models.inventory import Inventory
-from models.inventory_log import InventoryLog
+from models.forecast_evidence import ForecastCoverage
 from models.product import Product
 from models.sales_item import SalesItem
 from models.sales_order import SalesOrder
-from models.enums.inventory_log_type import InventoryLogType
 
 
-PUBLIC_SKU_PREFIX = "UCI-"
-DEFAULT_LIMIT_ROWS = 75_000
-
-
-def _money(value: str | Decimal) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
-
-
-def _parse_date(value: str) -> datetime:
+def _parse_date(value):
     for fmt in ("%m/%d/%Y %H:%M", "%m/%d/%y %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
         try:
-            return datetime.strptime(value.strip(), fmt)
+            return datetime.strptime(value.strip(), fmt).replace(tzinfo=timezone.utc)
         except ValueError:
             continue
-    raise ValueError(f"Unsupported InvoiceDate format: {value}")
+    raise ValueError(f"Unsupported InvoiceDate: {value}")
 
 
-def _clean_sku(value: str) -> str:
-    return f"{PUBLIC_SKU_PREFIX}{value.strip().upper()}"
-
-
-def _load_rows(csv_path: Path, limit_rows: int) -> list[dict]:
-    rows: list[dict] = []
-
+def load_dataset(csv_path: Path) -> dict:
+    digest = sha256()
+    with csv_path.open("rb") as file:
+        for block in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(block)
+    checksum = digest.hexdigest()
+    rows = []
+    skipped = 0
     with csv_path.open(newline="", encoding="utf-8-sig") as file:
         reader = csv.DictReader(file)
-
-        required_columns = {"InvoiceNo", "StockCode", "Description", "Quantity", "InvoiceDate", "UnitPrice"}
-        missing_columns = required_columns - set(reader.fieldnames or [])
-        if missing_columns:
-            raise ValueError(f"Missing required columns: {sorted(missing_columns)}")
-
-        for raw in reader:
-            if len(rows) >= limit_rows:
-                break
-
+        required = {"InvoiceNo", "StockCode", "Description", "Quantity", "InvoiceDate", "UnitPrice"}
+        if not required.issubset(set(reader.fieldnames or [])):
+            raise ValueError("Missing required UCI CSV columns")
+        for line_number, raw in enumerate(reader, start=2):
             try:
-                stock_code = raw["StockCode"].strip()
-                description = raw["Description"].strip() or stock_code
+                invoice = raw["InvoiceNo"].strip()
+                sku = raw["StockCode"].strip().upper()
                 quantity = int(raw["Quantity"])
-                unit_price = _money(raw["UnitPrice"])
-                invoice_date = _parse_date(raw["InvoiceDate"])
-                invoice_no = raw["InvoiceNo"].strip()
-            except (ValueError, InvalidOperation):
-                continue
-
-            if not stock_code or not invoice_no:
-                continue
-            if invoice_no.upper().startswith("C"):
-                continue
-            if quantity <= 0 or unit_price < 0:
-                continue
-
-            rows.append(
-                {
-                    "invoice_no": invoice_no,
-                    "sku": _clean_sku(stock_code),
-                    "name": description[:255],
-                    "quantity": quantity,
-                    "unit_price": unit_price,
-                    "invoice_date": invoice_date,
-                    "country": (raw.get("Country") or "PUBLIC").strip() or "PUBLIC",
-                }
-            )
-
-    return rows
+                price = Decimal(raw["UnitPrice"])
+                timestamp = _parse_date(raw["InvoiceDate"])
+                if not sku or not invoice or not price.is_finite():
+                    raise ValueError("Missing identifier or nonfinite price")
+                if invoice.upper().startswith("C") or quantity <= 0 or price < 0:
+                    skipped += 1
+                    continue
+                price = price.quantize(Decimal("0.01"))
+                rows.append({"invoice": invoice, "sku": sku, "name": raw["Description"].strip() or sku,
+                             "quantity": quantity, "price": price, "date": timestamp})
+            except (ValueError, InvalidOperation, AttributeError, TypeError) as error:
+                raise ValueError(f"Malformed CSV row {line_number}; cannot declare complete coverage: {error}") from error
+    if not rows:
+        raise ValueError("No usable positive-sales rows")
+    # Boundary days may be partial in a transaction export; omit both conservatively.
+    start = min(r["date"].date() for r in rows) + timedelta(days=1)
+    end = max(r["date"].date() for r in rows)
+    if start >= end:
+        raise ValueError("CSV must span enough dates to contain complete interior days")
+    rows = [r for r in rows if start <= r["date"].date() < end]
+    return {"rows": rows, "start": start, "end": end, "checksum": checksum,
+            "version": f"uci-v2-{checksum[:16]}", "skipped": skipped}
 
 
-def import_uci_online_retail(csv_path: Path, limit_rows: int = DEFAULT_LIMIT_ROWS) -> None:
-    db: Session = SessionLocal()
-
+def import_uci_online_retail(db: Session, csv_path: Path) -> dict:
+    dataset = load_dataset(csv_path)
+    version = dataset["version"]
+    existing = list(db.scalars(select(ForecastCoverage).where(ForecastCoverage.dataset_version == version)
+                              .order_by(ForecastCoverage.product_id)))
+    if existing:
+        return {"dataset_version": version, "product_ids": [r.product_id for r in existing], "created": False}
+    config = {"checksum": dataset["checksum"], "importer": "uci-v2", "timezone": "UTC",
+              "positive_sales_only": True, "returns_excluded": True, "skipped_rows": dataset["skipped"],
+              "coverage_assumption": "complete export over interior calendar days; no stockout information",
+              "inventory": "unknown; not synthesized"}
+    grouped = defaultdict(list)
+    first_dates = {}
+    for row in dataset["rows"]:
+        grouped[row["invoice"]].append(row)
+        first_dates[row["sku"]] = min(first_dates.get(row["sku"], row["date"].date()), row["date"].date())
+    products = {}
     try:
-        rows = _load_rows(csv_path, limit_rows)
-        if not rows:
-            raise ValueError("No usable rows found in CSV.")
-
-        product_by_sku: dict[str, Product] = {
-            product.sku: product
-            for product in db.execute(
-                select(Product).where(Product.sku.like(f"{PUBLIC_SKU_PREFIX}%"))
-            ).scalars()
-        }
-
-        products_created = 0
-        for row in rows:
-            if row["sku"] in product_by_sku:
+        for row in dataset["rows"]:
+            if row["sku"] in products:
                 continue
-
-            product = Product(
-                sku=row["sku"],
-                name=row["name"],
-                category="Public Online Retail",
-                unit_price=row["unit_price"],
-                is_active=True,
-            )
+            product = Product(sku=f"UCI2-{dataset['checksum'][:12]}-{row['sku']}", name=row["name"][:255],
+                              category="Public Online Retail", unit_price=row["price"], is_active=True,
+                              created_at=datetime.combine(dataset["start"], datetime.min.time(), timezone.utc))
             db.add(product)
-            product_by_sku[row["sku"]] = product
-            products_created += 1
-
-        db.flush()
-
-        inventory_by_product_id: dict[int, Inventory] = {
-            inventory.product_id: inventory
-            for inventory in db.execute(
-                select(Inventory).where(
-                    Inventory.product_id.in_([product.id for product in product_by_sku.values()])
-                )
-            ).scalars()
-        }
-
-        inventory_created = 0
-        for product in product_by_sku.values():
-            if product.id in inventory_by_product_id:
-                continue
-
-            initial_quantity = 100_000
-            db.add(
-                Inventory(
-                    product_id=product.id,
-                    quantity_on_hand=initial_quantity,
-                )
-            )
-            db.add(
-                InventoryLog(
-                    product_id=product.id,
-                    change_quantity=initial_quantity,
-                    quantity_before=0,
-                    quantity_after=initial_quantity,
-                    log_type=InventoryLogType.INIT.value,
-                    reference_id=None,
-                    log_date=datetime.now(),
-                )
-            )
-            inventory_created += 1
-
-        invoice_rows: dict[str, list[dict]] = defaultdict(list)
-        for row in rows:
-            invoice_rows[row["invoice_no"]].append(row)
-
-        orders_created = 0
-        items_created = 0
-
-        for invoice_no, invoice_items in invoice_rows.items():
-            first_row = invoice_items[0]
-            existing_reference = db.execute(
-                select(SalesOrder.id).where(
-                    SalesOrder.sales_channel == f"UCI:{invoice_no}"
-                )
-            ).scalar_one_or_none()
-            if existing_reference:
-                continue
-
-            order = SalesOrder(
-                order_date=first_row["invoice_date"],
-                created_at=first_row["invoice_date"],
-                sales_channel=f"UCI:{invoice_no}",
-                total_amount=Decimal("0.00"),
-            )
+            db.flush()
+            products[row["sku"]] = product
+            # Do not invent pre-listing zeros: coverage begins on this SKU's first observed day.
+            first = first_dates[row["sku"]]
+            db.add(ForecastCoverage(product_id=product.id, observed_from=first,
+                                   observed_through=dataset["end"] - timedelta(days=1),
+                                   source="uci_online_retail", dataset_version=version, configuration=config))
+        for invoice, rows in sorted(grouped.items()):
+            if len({r["date"].date() for r in rows}) != 1:
+                raise ValueError(f"Invoice {invoice} spans multiple dates; inspect source")
+            reference = f"{version}:{invoice}"
+            if len(reference) > 160:
+                raise ValueError("External invoice reference too long")
+            order = SalesOrder(order_date=rows[0]["date"], created_at=rows[0]["date"], sales_channel="PUBLIC",
+                               external_reference=reference, total_amount=Decimal(0))
             db.add(order)
             db.flush()
-
-            total_amount = Decimal("0.00")
-            for row in invoice_items:
-                product = product_by_sku[row["sku"]]
-                line_total = (row["unit_price"] * row["quantity"]).quantize(Decimal("0.01"))
-                db.add(
-                    SalesItem(
-                        sales_order_id=order.id,
-                        product_id=product.id,
-                        quantity=row["quantity"],
-                        unit_price=row["unit_price"],
-                        line_total=line_total,
-                    )
-                )
-                total_amount += line_total
-                items_created += 1
-
-            order.total_amount = total_amount
-            orders_created += 1
-
+            for row in rows:
+                line = row["price"] * row["quantity"]
+                order.total_amount += line
+                db.add(SalesItem(sales_order_id=order.id, product_id=products[row["sku"]].id,
+                                 quantity=row["quantity"], unit_price=row["price"], line_total=line))
         db.commit()
-
-        print("UCI Online Retail data imported successfully.")
-        print(f"Rows read: {len(rows)}")
-        print(f"Products created: {products_created}")
-        print(f"Inventory rows created: {inventory_created}")
-        print(f"Sales orders created: {orders_created}")
-        print(f"Sales items created: {items_created}")
-
+        return {"dataset_version": version, "product_ids": [p.id for p in products.values()], "created": True,
+                "observed_from": dataset["start"].isoformat(), "end_exclusive": dataset["end"].isoformat(),
+                "rows_imported": len(dataset["rows"]), "skipped_rows": dataset["skipped"]}
     except Exception:
         db.rollback()
         raise
-    finally:
-        db.close()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Import UCI Online Retail CSV data into the app schema."
-    )
+def main():
+    parser = argparse.ArgumentParser(description="Import a complete UCI CSV as an isolated forecasting dataset")
     parser.add_argument("csv_path", type=Path)
-    parser.add_argument("--limit-rows", type=int, default=DEFAULT_LIMIT_ROWS)
     args = parser.parse_args()
-
-    import_uci_online_retail(args.csv_path, args.limit_rows)
+    from database.session import SessionLocal
+    with SessionLocal() as db:
+        print(json.dumps(import_uci_online_retail(db, args.csv_path), indent=2))
 
 
 if __name__ == "__main__":

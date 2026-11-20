@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Index, Integer, String
+from sqlalchemy import Date, DateTime, Index, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -25,6 +25,8 @@ class ForecastRun(Base):
     generated_by_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="completed", nullable=False)
     notes: Mapped[str | None] = mapped_column(String, nullable=True)
+    as_of_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    settings: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     generated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

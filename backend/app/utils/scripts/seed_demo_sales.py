@@ -1,222 +1,165 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import argparse
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from hashlib import sha256
+import json
 from pathlib import Path
 import random
 import sys
 
-from sqlalchemy import delete, select
+sys.path.append(str(Path(__file__).resolve().parents[2]))
+
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-BASE_DIR = Path(__file__).resolve().parents[2]
-sys.path.append(str(BASE_DIR))
-
-from database.session import SessionLocal
+from models.forecast_evidence import ForecastCoverage
 from models.inventory import Inventory
 from models.inventory_log import InventoryLog
 from models.product import Product
+from models.replenishment import ReplenishmentPolicy
 from models.sales_item import SalesItem
 from models.sales_order import SalesOrder
-from models.enums.inventory_log_type import InventoryLogType
 
 
 RANDOM_SEED = 20260623
-DEMO_SKU_PREFIX = "DEMO-"
-DEMO_CHANNELS = ("ONLINE", "OFFLINE", "MARKETPLACE")
-
+DEFAULT_END = date(2026, 11, 16)  # Exclusive Monday cutoff, deliberately not today's date.
+GENERATOR_VERSION = "demo-v2"
 DEMO_PRODUCTS = [
-    ("DEMO-COF-001", "Arabica Coffee Beans 500g", "Coffee", "12.50", 7.8),
-    ("DEMO-COF-002", "Cold Brew Bottle 250ml", "Coffee", "3.20", 14.0),
-    ("DEMO-TEA-001", "Jasmine Green Tea Box", "Tea", "8.40", 5.4),
-    ("DEMO-TEA-002", "Oolong Tea Tin", "Tea", "11.90", 3.7),
-    ("DEMO-SNK-001", "Chocolate Protein Bar", "Snack", "2.80", 12.5),
-    ("DEMO-SNK-002", "Sea Salt Crackers", "Snack", "3.10", 8.2),
-    ("DEMO-HOM-001", "Ceramic Mug", "Home", "6.50", 2.6),
-    ("DEMO-HOM-002", "Reusable Bottle", "Home", "9.90", 3.4),
-    ("DEMO-PER-001", "Hand Cream 50ml", "Personal Care", "5.75", 4.9),
-    ("DEMO-PER-002", "Lip Balm", "Personal Care", "2.25", 6.8),
-    ("DEMO-SEA-001", "Holiday Gift Box", "Seasonal", "18.00", 1.8),
-    ("DEMO-SEA-002", "Summer Iced Tea Kit", "Seasonal", "15.50", 1.5),
+    ("COF-001", "Arabica Coffee Beans 500g", "Coffee", "12.50", 7.8),
+    ("COF-002", "Cold Brew Bottle 250ml", "Coffee", "3.20", 14.0),
+    ("TEA-001", "Jasmine Green Tea Box", "Tea", "8.40", 5.4),
+    ("TEA-002", "Oolong Tea Tin", "Tea", "11.90", 3.7),
+    ("SNK-001", "Chocolate Protein Bar", "Snack", "2.80", 12.5),
+    ("SNK-002", "Sea Salt Crackers", "Snack", "3.10", 8.2),
+    ("HOM-001", "Ceramic Mug", "Home", "6.50", 2.6),
+    ("HOM-002", "Reusable Bottle", "Home", "9.90", 3.4),
+    ("PER-001", "Hand Cream 50ml", "Personal Care", "5.75", 4.9),
+    ("PER-002", "Lip Balm", "Personal Care", "2.25", 6.8),
+    ("SEA-001", "Holiday Gift Box", "Seasonal", "18.00", 1.8),
+    ("SEA-002", "Summer Iced Tea Kit", "Seasonal", "15.50", 1.5),
 ]
 
 
-def _money(value: str | float) -> Decimal:
-    return Decimal(str(value)).quantize(Decimal("0.01"))
+def build_demo_dataset(days: int = 1092, end_date: date = DEFAULT_END, seed: int = RANDOM_SEED) -> dict:
+    if not 28 <= days <= 3650:
+        raise ValueError("days must be between 28 and 3650")
+    if end_date > date.today():
+        raise ValueError("end_date cannot be in the future")
+    start = end_date - timedelta(days=days)
+    config = {"generator": GENERATOR_VERSION, "seed": seed, "days": days,
+              "start_date": start.isoformat(), "end_date_exclusive": end_date.isoformat(),
+              "timezone": "UTC", "inventory": "simulated opening stock covers all sales plus ending stock"}
+    rng = random.Random(seed)
+    orders = []
+    totals = [0] * len(DEMO_PRODUCTS)
+    for offset in range(days):
+        day = start + timedelta(days=offset)
+        items = []
+        for idx, (sku, name, category, price, base) in enumerate(DEMO_PRODUCTS):
+            weekend = 1.25 if day.weekday() in (4, 5, 6) else 0.88
+            seasonal = 1.45 if day.month in (11, 12) else (1.18 if day.month in (6, 7, 8) else 1.0)
+            if sku == "SEA-001":
+                seasonal = 4.0 if day.month in (11, 12) else 0.35
+            elif sku == "SEA-002":
+                seasonal = 3.0 if day.month in (6, 7, 8) else 0.4
+            quantity = round(base * weekend * seasonal * (1 + offset / 365 * 0.06) * rng.uniform(0.55, 1.45))
+            if rng.random() < 0.18:
+                quantity = 0
+            if rng.random() < 0.035:
+                quantity += rng.randint(6, 18)
+            if quantity:
+                items.append({"product_index": idx, "quantity": quantity, "unit_price": price})
+                totals[idx] += quantity
+        if items:
+            orders.append({"date": day.isoformat(), "channel": rng.choice(("ONLINE", "OFFLINE", "MARKETPLACE")),
+                           "items": items})
+    checksum = sha256(json.dumps({"config": config, "products": DEMO_PRODUCTS, "orders": orders}, sort_keys=True,
+                                separators=(",", ":")).encode()).hexdigest()
+    return {"config": config, "checksum": checksum, "version": f"{GENERATOR_VERSION}-{checksum[:16]}",
+            "orders": orders, "totals": totals}
 
 
-def _clear_demo_data(db: Session) -> None:
-    demo_product_ids = [
-        row.id
-        for row in db.execute(
-            select(Product.id).where(Product.sku.like(f"{DEMO_SKU_PREFIX}%"))
-        ).all()
-    ]
-
-    if not demo_product_ids:
-        return
-
-    order_ids = [
-        row.sales_order_id
-        for row in db.execute(
-            select(SalesItem.sales_order_id)
-            .where(SalesItem.product_id.in_(demo_product_ids))
-            .distinct()
-        ).all()
-    ]
-
-    if order_ids:
-        db.execute(delete(SalesItem).where(SalesItem.sales_order_id.in_(order_ids)))
-        db.execute(delete(SalesOrder).where(SalesOrder.id.in_(order_ids)))
-
-    db.execute(delete(InventoryLog).where(InventoryLog.product_id.in_(demo_product_ids)))
-    db.execute(delete(Inventory).where(Inventory.product_id.in_(demo_product_ids)))
-    db.execute(delete(Product).where(Product.id.in_(demo_product_ids)))
-    db.flush()
-
-
-def _daily_quantity(rng: random.Random, base_demand: float, current_date: datetime) -> int:
-    weekday_multiplier = 1.25 if current_date.weekday() in (4, 5, 6) else 0.88
-    month_multiplier = 1.0
-
-    if current_date.month in (11, 12):
-        month_multiplier = 1.45
-    elif current_date.month in (6, 7, 8):
-        month_multiplier = 1.18
-    elif current_date.month in (2,):
-        month_multiplier = 0.82
-
-    trend_multiplier = 1 + ((current_date.timetuple().tm_yday - 1) / 365) * 0.18
-    noise = rng.uniform(0.55, 1.45)
-    expected = base_demand * weekday_multiplier * month_multiplier * trend_multiplier * noise
-
-    quantity = int(round(expected))
-
-    if rng.random() < 0.18:
-        quantity = 0
-    if rng.random() < 0.035:
-        quantity += rng.randint(6, 18)
-
-    return max(0, quantity)
-
-
-def seed_demo_sales(days: int = 365, replace: bool = True) -> None:
-    rng = random.Random(RANDOM_SEED)
-    db: Session = SessionLocal()
-
+def seed_demo_sales(db: Session, days: int = 1092, end_date: date = DEFAULT_END,
+                    seed: int = RANDOM_SEED) -> dict:
+    dataset = build_demo_dataset(days, end_date, seed)
+    version = dataset["version"]
+    existing = list(db.scalars(select(ForecastCoverage).where(ForecastCoverage.dataset_version == version)
+                              .order_by(ForecastCoverage.product_id)))
+    if existing:
+        if len(existing) != len(DEMO_PRODUCTS):
+            raise ValueError("Incomplete existing dataset; inspect it rather than overwriting evidence")
+        return {"dataset_version": version, "checksum": dataset["checksum"],
+                "product_ids": [row.product_id for row in existing], "created": False,
+                "as_of_date": end_date.isoformat()}
+    start = end_date - timedelta(days=days)
+    opening_time = datetime.combine(start, time.min, timezone.utc)
+    products = []
+    inventories = []
     try:
-        if replace:
-            _clear_demo_data(db)
-
-        existing_demo = db.execute(
-            select(Product.id).where(Product.sku.like(f"{DEMO_SKU_PREFIX}%")).limit(1)
-        ).scalar_one_or_none()
-        if existing_demo:
-            print("Demo data already exists. Use replace=True in the script to reseed.")
-            return
-
-        products: list[tuple[Product, float]] = []
-        for sku, name, category, unit_price, base_demand in DEMO_PRODUCTS:
-            product = Product(
-                sku=sku,
-                name=name,
-                category=category,
-                unit_price=_money(unit_price),
-                is_active=True,
-            )
+        for idx, (sku, name, category, price, base) in enumerate(DEMO_PRODUCTS):
+            product = Product(sku=f"DEMO2-{dataset['checksum'][:12]}-{sku}", name=name, category=category,
+                              unit_price=Decimal(price), is_active=True, created_at=opening_time)
             db.add(product)
-            products.append((product, base_demand))
-
-        db.flush()
-
-        for product, _base_demand in products:
-            initial_quantity = rng.randint(900, 1800)
-            db.add(
-                Inventory(
-                    product_id=product.id,
-                    quantity_on_hand=initial_quantity,
-                )
-            )
-            db.add(
-                InventoryLog(
-                    product_id=product.id,
-                    change_quantity=initial_quantity,
-                    quantity_before=0,
-                    quantity_after=initial_quantity,
-                    log_type=InventoryLogType.INIT.value,
-                    reference_id=None,
-                    log_date=datetime.now(),
-                )
-            )
-
-        start_date = datetime.now().replace(hour=10, minute=0, second=0, microsecond=0) - timedelta(days=days)
-        orders_created = 0
-        items_created = 0
-
-        for day_offset in range(days):
-            current_date = start_date + timedelta(days=day_offset)
-            daily_items: list[tuple[Product, int]] = []
-
-            for product, base_demand in products:
-                quantity = _daily_quantity(rng, base_demand, current_date)
-                if quantity > 0:
-                    daily_items.append((product, quantity))
-
-            if not daily_items:
-                continue
-
-            rng.shuffle(daily_items)
-            chunk_size = rng.randint(2, 5)
-
-            for chunk_start in range(0, len(daily_items), chunk_size):
-                chunk = daily_items[chunk_start : chunk_start + chunk_size]
-                order_date = current_date.replace(
-                    hour=rng.randint(8, 21),
-                    minute=rng.randint(0, 59),
-                    second=rng.randint(0, 59),
-                )
-                order = SalesOrder(
-                    order_date=order_date,
-                    created_at=order_date,
-                    sales_channel=rng.choice(DEMO_CHANNELS),
-                    total_amount=Decimal("0.00"),
-                )
-                db.add(order)
-                db.flush()
-
-                total_amount = Decimal("0.00")
-
-                for product, quantity in chunk:
-                    line_total = (product.unit_price * quantity).quantize(Decimal("0.01"))
-                    db.add(
-                        SalesItem(
-                            sales_order_id=order.id,
-                            product_id=product.id,
-                            quantity=quantity,
-                            unit_price=product.unit_price,
-                            line_total=line_total,
-                        )
-                    )
-                    total_amount += line_total
-                    items_created += 1
-
-                order.total_amount = total_amount
-                orders_created += 1
-
+            db.flush()
+            ending = max(5, round(base * 7 * (0.5 if idx % 2 == 0 else 4)))
+            opening = dataset["totals"][idx] + ending
+            inventory = Inventory(product_id=product.id, quantity_on_hand=opening)
+            db.add(inventory)
+            db.add(InventoryLog(product_id=product.id, change_quantity=opening, quantity_before=0,
+                                quantity_after=opening, log_type="INIT", log_date=opening_time))
+            db.add(ForecastCoverage(product_id=product.id, observed_from=start,
+                                   observed_through=end_date - timedelta(days=1), source="synthetic",
+                                   dataset_version=version,
+                                   configuration={**dataset["config"], "checksum": dataset["checksum"],
+                                                  "inventory_as_of": end_date.isoformat()}))
+            db.add(ReplenishmentPolicy(product_id=product.id, lead_time_weeks=2, review_interval_weeks=1,
+                                       safety_stock=round(base * 7), minimum_order_quantity=0,
+                                       pack_size=1, version=1))
+            products.append(product)
+            inventories.append(inventory)
+        for record in dataset["orders"]:
+            timestamp = datetime.combine(date.fromisoformat(record["date"]), time(12), timezone.utc)
+            order = SalesOrder(order_date=timestamp, created_at=timestamp,
+                               sales_channel=record["channel"], total_amount=Decimal(0))
+            db.add(order)
+            db.flush()
+            total = Decimal(0)
+            for item in record["items"]:
+                idx = item["product_index"]
+                quantity = item["quantity"]
+                price = Decimal(item["unit_price"])
+                stock = inventories[idx]
+                before = stock.quantity_on_hand
+                stock.quantity_on_hand -= quantity
+                total += price * quantity
+                db.add(SalesItem(sales_order_id=order.id, product_id=products[idx].id, quantity=quantity,
+                                 unit_price=price, line_total=price * quantity))
+                db.add(InventoryLog(product_id=products[idx].id, change_quantity=-quantity,
+                                    quantity_before=before, quantity_after=stock.quantity_on_hand,
+                                    log_type="SALE", reference_id=order.id, log_date=timestamp))
+            order.total_amount = total
         db.commit()
-
-        print("Demo sales data seeded successfully.")
-        print(f"Products created: {len(products)}")
-        print(f"Sales orders created: {orders_created}")
-        print(f"Sales items created: {items_created}")
-        print(f"History window: {days} days")
-
+        return {"dataset_version": version, "checksum": dataset["checksum"],
+                "product_ids": [p.id for p in products], "created": True,
+                "as_of_date": end_date.isoformat()}
     except Exception:
         db.rollback()
         raise
-    finally:
-        db.close()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Seed an isolated, deterministic dataset; never deletes existing data")
+    parser.add_argument("--days", type=int, default=1092)
+    parser.add_argument("--end-date", type=date.fromisoformat, default=DEFAULT_END,
+                        help="Exclusive end, ideally a Monday for weekly decisions")
+    parser.add_argument("--seed", type=int, default=RANDOM_SEED)
+    args = parser.parse_args()
+    from database.session import SessionLocal
+    with SessionLocal() as db:
+        print(json.dumps(seed_demo_sales(db, args.days, args.end_date, args.seed), indent=2))
 
 
 if __name__ == "__main__":
-    seed_demo_sales()
+    main()

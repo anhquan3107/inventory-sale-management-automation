@@ -18,6 +18,7 @@ from routers.auth import router as auth_router
 from routers.admin import router as admin_router
 from routers.dashboard import router as dashboard_router
 from routers.forecast import router as forecast_router
+from routers.decisions import router as decisions_router
 
 
 import models
@@ -67,6 +68,7 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(dashboard_router)
 app.include_router(forecast_router)
+app.include_router(decisions_router)
 
 
 

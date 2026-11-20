@@ -18,11 +18,13 @@ class SalesOrder(Base):
     )
     total_amount: Mapped[Decimal] = mapped_column(Numeric(12,2), default=0)
     sales_channel: Mapped[str] = mapped_column(String)
+    external_reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
     __table_args__ = (
+        Index("uq_sales_orders_external_reference", "external_reference", unique=True),
         Index("idx_sales_orders_order_date", "order_date"),
         Index("idx_sales_orders_sales_channel", "sales_channel"),
     )
