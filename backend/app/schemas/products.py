@@ -29,3 +29,6 @@ class ProductResponse(BaseModel):
     category: Optional[str]
     unit_price: Decimal
     is_active: bool
+
+    class Config:
+        from_attributes = True

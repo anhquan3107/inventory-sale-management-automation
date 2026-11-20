@@ -12,6 +12,7 @@ import {
 import {
   Dashboard as DashboardIcon,
   ShoppingCart as SalesIcon,
+  Category as CategoryIcon,
   Inventory as InventoryIcon,
 } from '@mui/icons-material'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -21,6 +22,7 @@ const DRAWER_WIDTH = 240
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { label: 'Sales', path: '/sales', icon: <SalesIcon /> },
+  { label: 'Products', path: '/products', icon: <CategoryIcon /> },
   { label: 'Inventory', path: '/inventory', icon: <InventoryIcon /> },
 ]
 

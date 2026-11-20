@@ -63,6 +63,7 @@ def get_me(
     return {
         "id": user.id,
         "username": user.username,
+        "email": user.email,
         "role": user.role
     }
 

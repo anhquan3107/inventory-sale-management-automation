@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from models.enums.user_role import UserRole
 
 
 class LoginRequest(BaseModel):
@@ -17,7 +18,8 @@ class LoginResponse(BaseModel):
 class UserMeResponse(BaseModel):
     id: int
     username: str
-    role: str
+    email: str
+    role: UserRole
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

@@ -6,6 +6,7 @@ import ChangePassword from '../pages/ChangePassword'
 import Dashboard from '../pages/Dashboard'
 import Sales from '../pages/Sales'
 import Inventory from '../pages/Inventory'
+import Products from '../pages/Products'
 
 export const protectedRoutes: RouteObject[] = [
   {
@@ -16,6 +17,7 @@ export const protectedRoutes: RouteObject[] = [
         children: [
           { path: '/dashboard', element: <Dashboard /> },
           { path: '/sales', element: <Sales /> },
+          { path: '/products', element: <Products /> },
           { path: '/inventory', element: <Inventory /> },
         ],
       },

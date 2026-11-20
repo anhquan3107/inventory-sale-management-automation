@@ -3,6 +3,7 @@ from sqlalchemy import select
 from passlib.context import CryptContext
 
 from models import User
+from models.enums.user_role import UserRole
 from utils.security.jwt import (
     create_access_token,
     create_refresh_token
@@ -48,7 +49,7 @@ def authenticate_user(
 
     payload = {
         "sub": str(user.id),
-        "role": user.role
+        "role": UserRole(user.role).value
     }
 
     return {
