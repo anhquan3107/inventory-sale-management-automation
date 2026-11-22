@@ -71,5 +71,6 @@ build/
 dist/
 tmp/
 temp/
+docs/
 
 .github/*
