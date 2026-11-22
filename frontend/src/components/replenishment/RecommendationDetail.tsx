@@ -101,7 +101,7 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                 <h3 id='projection-heading'>Projected week-end stock</h3>
                 <p className='rp-muted rp-no-margin'>Based on on-hand stock, forecast demand and existing receipts.</p>
               </div>
-              <span className={`rp-badge ${result.stockout_risk ? 'rp-amber' : 'rp-green'}`}>
+              <span className={result.stockout_risk ? 'rp-badge rp-badge-strong' : 'rp-badge'}>
                 {result.stockout_risk ? 'Stockout risk' : 'No projected stockout'}
               </span>
             </div>
@@ -176,7 +176,7 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
             ) : decision && (
               <div className='rp-form' role='status'>
                 <p className='rp-no-margin'>
-                  <span className={`rp-badge rp-${status}`}>{status}</span>
+                  <span className='rp-badge'>{status}</span>
                   {' '}{formatQuantity(decision.quantity)} units · {formatTimestamp(decision.created_at)}
                 </p>
                 <p className='rp-muted rp-no-margin'>Recorded by user #{decision.user_id}</p>

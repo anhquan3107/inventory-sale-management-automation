@@ -91,7 +91,7 @@ export default function RecommendationHistory({ products, reviewed, onOpen, onPl
                         {formatQuantity(item.suggested_quantity)} units
                         {item.snapshot.result.stockout_risk && <small className='rp-stock-negative'>Stockout risk</small>}
                       </TableCell>
-                      <TableCell><span className={`rp-badge rp-${item.status}`}>{item.status}</span></TableCell>
+                      <TableCell><span className={item.status === 'pending' ? 'rp-badge rp-badge-strong' : 'rp-badge'}>{item.status}</span></TableCell>
                       <TableCell><Button size='small' onClick={() => onOpen(item)} aria-label={`View recommendation ${item.id}`}>View</Button></TableCell>
                     </TableRow>
                   )

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Autocomplete, Button, CircularProgress, Paper, Tab, Tabs, TextField,
-  ThemeProvider, createFilterOptions, createTheme,
+  Alert, Autocomplete, Button, Chip, CircularProgress, Paper, Tab, Tabs, TextField,
+  ThemeProvider, Typography, createFilterOptions, createTheme,
 } from '@mui/material'
 import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined'
 import EventRepeatOutlined from '@mui/icons-material/EventRepeatOutlined'
@@ -22,12 +22,18 @@ import RecommendationDetail from '../components/replenishment/RecommendationDeta
 import { weekLabel } from '../components/replenishment/format'
 import './Replenishment.css'
 
-const workspaceTheme = createTheme({
-  ...theme,
-  palette: {
-    ...theme.palette,
-    primary: { main: '#115e59', contrastText: '#ffffff' },
-    text: { primary: '#102924', secondary: '#4e645d' },
+const workspaceTheme = createTheme(theme, {
+  components: {
+    MuiAlert: {
+      styleOverrides: {
+        standard: {
+          color: theme.palette.text.primary,
+          backgroundColor: theme.palette.grey[100],
+          border: `1px solid ${theme.palette.divider}`,
+          '& .MuiAlert-icon': { color: theme.palette.text.primary },
+        },
+      },
+    },
   },
 })
 
@@ -122,20 +128,16 @@ function ReplenishmentWorkspace() {
   }
 
   return (
-    <ThemeProvider theme={workspaceTheme}>
+    <>
       <div className='rp-workspace'>
-        <header className='rp-hero'>
-          <div className='rp-hero-main'>
-            <div className='rp-hero-icon'><EventRepeatOutlined aria-hidden='true' /></div>
-            <div>
-              <h1>Replenishment</h1>
-              <p>Plan weekly stock orders using product policies and forecast demand.</p>
-            </div>
+        <header className='rp-header'>
+          <div>
+            <Typography variant='h5' component='h1' sx={{ mb: 0.5 }}>Replenishment</Typography>
+            <Typography variant='body2' color='text.secondary'>
+              Plan weekly stock orders using product policies and forecast demand.
+            </Typography>
           </div>
-          <div className='rp-advisory'>
-            <InfoOutlined fontSize='small' aria-hidden='true' />
-            <span>Advisory decisions only</span>
-          </div>
+          <Chip size='small' variant='outlined' icon={<InfoOutlined />} label='Advisory decisions only' />
         </header>
 
         <Tabs className='rp-tabs' aria-label='Replenishment workspace' value={tab}
@@ -182,7 +184,7 @@ function ReplenishmentWorkspace() {
                 <dl className='rp-product-summary'>
                   <div>
                     <dt>Saved policy</dt>
-                    <dd><span className={`rp-badge ${policy ? 'rp-green' : 'rp-amber'}`}>{policy ? `Version ${policy.version}` : 'Setup required'}</span></dd>
+                    <dd><span className={policy ? 'rp-badge' : 'rp-badge rp-badge-strong'}>{policy ? `Version ${policy.version}` : 'Setup required'}</span></dd>
                   </div>
                   <div>
                     <dt>Protection period</dt>
@@ -218,12 +220,17 @@ function ReplenishmentWorkspace() {
           onClose={() => setDetail(null)}
         />
       )}
-    </ThemeProvider>
+    </>
   )
 }
 
 export default function Replenishment() {
   const { user } = useAuth()
-  if (user?.role !== 'admin') return <Alert severity='error'>Replenishment requires administrator access.</Alert>
-  return <ReplenishmentWorkspace />
+  return (
+    <ThemeProvider theme={workspaceTheme}>
+      {user?.role === 'admin'
+        ? <ReplenishmentWorkspace />
+        : <Alert severity='error'>Replenishment requires administrator access.</Alert>}
+    </ThemeProvider>
+  )
 }

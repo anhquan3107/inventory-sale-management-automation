@@ -93,10 +93,10 @@ const Sidebar = ({ mobileOpen, onClose }: Props) => {
                 borderRadius: 2,
                 mb: 0.5,
                 '&.Mui-selected': {
-                  backgroundColor: item.adminOnly ? '#115e59' : '#000000',
+                  backgroundColor: '#000000',
                   color: '#ffffff',
                   '&:hover': {
-                    backgroundColor: item.adminOnly ? '#124b45' : '#1a1a1a',
+                    backgroundColor: '#1a1a1a',
                   },
                   '& .MuiListItemIcon-root': {
                     color: '#ffffff',
