@@ -30,4 +30,18 @@ export const API_PATHS = {
     LOW_STOCK: '/dashboard/low-stock',
     RECENT_SALES: '/dashboard/recent-sales',
   },
+  FORECAST: {
+    ACCURACY: '/forecast/accuracy',
+    PREDICTIONS: '/forecast/predictions',
+    GENERATE: '/forecast/generate',
+    COVERAGE: '/forecast/coverage',
+    PRODUCT_COVERAGE: (productId: number) => `/forecast/coverage/${productId}`,
+  },
+  DECISIONS: {
+    POLICIES: '/decisions/policies',
+    POLICY: (productId: number) => `/decisions/policies/${productId}`,
+    GENERATE: '/decisions/generate',
+    RECOMMENDATIONS: '/decisions/recommendations',
+    RECOMMENDATION: (id: number) => `/decisions/recommendations/${id}`,
+  },
 }

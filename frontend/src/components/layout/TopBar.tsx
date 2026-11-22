@@ -1,11 +1,14 @@
-import { AppBar, Toolbar, Typography, Button, Box } from '@mui/material'
-import { Logout as LogoutIcon } from '@mui/icons-material'
+import { AppBar, Toolbar, Typography, Button, Box, IconButton } from '@mui/material'
+import { Logout as LogoutIcon, Menu as MenuIcon } from '@mui/icons-material'
 import { useAuth } from '../../hooks/use-auth'
 import { useNavigate } from 'react-router-dom'
 
-const DRAWER_WIDTH = 240
+interface Props {
+  mobileOpen: boolean
+  onOpenMenu: () => void
+}
 
-const TopBar = () => {
+const TopBar = ({ mobileOpen, onOpenMenu }: Props) => {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -19,22 +22,27 @@ const TopBar = () => {
       position='fixed'
       elevation={0}
       sx={{
-        width: `calc(100% - ${DRAWER_WIDTH}px)`,
-        ml: `${DRAWER_WIDTH}px`,
+        width: { xs: '100%', md: 'calc(100% - var(--ims-sidebar-width))' },
         backgroundColor: '#ffffff',
         color: '#000000',
         borderBottom: '1px solid #e0e0e0',
       }}
     >
-      <Toolbar sx={{ justifyContent: 'space-between' }}>
-        <Typography variant='h6' sx={{ fontWeight: 600, fontSize: '1rem' }}>
-          Inventory Management
-        </Typography>
+      <Toolbar sx={{ justifyContent: 'space-between', gap: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, gap: 0.75 }}>
+          <IconButton aria-label='Open navigation' aria-expanded={mobileOpen} edge='start' onClick={onOpenMenu}
+            sx={{ display: { md: 'none' } }}>
+            <MenuIcon />
+          </IconButton>
+          <Typography variant='h6' noWrap sx={{ fontWeight: 600, fontSize: '1rem' }}>
+            Inventory Management
+          </Typography>
+        </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography
             variant='body2'
-            sx={{ color: '#666666', fontWeight: 500 }}
+            sx={{ color: '#666666', fontWeight: 500, display: { xs: 'none', sm: 'block' } }}
           >
             {user?.username}
           </Typography>

@@ -8,36 +8,48 @@ import {
   Typography,
   Divider,
   Box,
+  useMediaQuery,
 } from '@mui/material'
 import {
   Dashboard as DashboardIcon,
   ShoppingCart as SalesIcon,
   Category as CategoryIcon,
   Inventory as InventoryIcon,
+  EventRepeatOutlined,
 } from '@mui/icons-material'
-import { useNavigate, useLocation } from 'react-router-dom'
-
-const DRAWER_WIDTH = 240
+import { Link, useLocation } from 'react-router-dom'
+import { useTheme } from '@mui/material/styles'
+import { useAuth } from '../../hooks/use-auth'
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: <DashboardIcon /> },
   { label: 'Sales', path: '/sales', icon: <SalesIcon /> },
   { label: 'Products', path: '/products', icon: <CategoryIcon /> },
   { label: 'Inventory', path: '/inventory', icon: <InventoryIcon /> },
+  { label: 'Replenishment', path: '/replenishment', icon: <EventRepeatOutlined />, adminOnly: true },
 ]
 
-const Sidebar = () => {
-  const navigate = useNavigate()
+interface Props {
+  mobileOpen: boolean
+  onClose: () => void
+}
+
+const Sidebar = ({ mobileOpen, onClose }: Props) => {
   const location = useLocation()
+  const { user } = useAuth()
+  const theme = useTheme()
+  const mobile = useMediaQuery(theme.breakpoints.down('md'))
 
   return (
     <Drawer
-      variant='permanent'
+      variant={mobile ? 'temporary' : 'permanent'}
+      open={!mobile || mobileOpen}
+      onClose={onClose}
       sx={{
-        width: DRAWER_WIDTH,
+        width: 'var(--ims-sidebar-width, 240px)',
         flexShrink: 0,
         '& .MuiDrawer-paper': {
-          width: DRAWER_WIDTH,
+          width: 'var(--ims-sidebar-width, 240px)',
           boxSizing: 'border-box',
           backgroundColor: '#ffffff',
           borderRight: '1px solid #e0e0e0',
@@ -65,23 +77,26 @@ const Sidebar = () => {
 
       <Divider />
 
-      <List sx={{ px: 1, pt: 1 }}>
-        {navItems.map((item) => {
+      <List component='nav' aria-label='Main navigation' sx={{ px: 1, pt: 1 }}>
+        {navItems.filter((item) => !item.adminOnly || user?.role === 'admin').map((item) => {
           const isActive = location.pathname === item.path
 
           return (
             <ListItemButton
               key={item.path}
-              onClick={() => navigate(item.path)}
+              component={Link}
+              to={item.path}
+              onClick={onClose}
+              aria-current={isActive ? 'page' : undefined}
               selected={isActive}
               sx={{
                 borderRadius: 2,
                 mb: 0.5,
                 '&.Mui-selected': {
-                  backgroundColor: '#000000',
+                  backgroundColor: item.adminOnly ? '#115e59' : '#000000',
                   color: '#ffffff',
                   '&:hover': {
-                    backgroundColor: '#1a1a1a',
+                    backgroundColor: item.adminOnly ? '#124b45' : '#1a1a1a',
                   },
                   '& .MuiListItemIcon-root': {
                     color: '#ffffff',
