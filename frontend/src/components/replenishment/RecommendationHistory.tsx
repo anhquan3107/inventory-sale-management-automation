@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Alert, Button, CircularProgress, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material'
-import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
-import HistoryOutlined from '@mui/icons-material/HistoryOutlined'
-import ReplayOutlined from '@mui/icons-material/ReplayOutlined'
+import {
+  Alert, Button, Chip, CircularProgress, Paper, Stack, Table, TableBody, TableCell,
+  TableContainer, TableHead, TableRow, Typography,
+} from '@mui/material'
 import { decisionError, replenishmentApi } from '../../api/replenishment'
 import type { ProductResponse } from '../../types/product'
 import type { Recommendation } from '../../types/replenishment'
@@ -14,7 +14,6 @@ interface Props {
   products: ProductResponse[]
   reviewed: Record<number, Recommendation>
   onOpen: (recommendation: Recommendation) => void
-  onPlan: () => void
 }
 
 interface Page {
@@ -23,7 +22,7 @@ interface Page {
   error: string
 }
 
-export default function RecommendationHistory({ products, reviewed, onOpen, onPlan }: Props) {
+export default function RecommendationHistory({ products, reviewed, onOpen }: Props) {
   const [offset, setOffset] = useState(0)
   const [attempt, setAttempt] = useState(0)
   const [page, setPage] = useState<Page | null>(null)
@@ -46,64 +45,80 @@ export default function RecommendationHistory({ products, reviewed, onOpen, onPl
   }, [key, offset])
 
   return (
-    <Paper component='section' variant='outlined' className='rp-card' aria-labelledby='history-heading'>
-      <div className='rp-card-heading rp-history-heading'>
-        <span className='rp-section-icon'><HistoryOutlined fontSize='small' /></span>
-        <div>
-          <h2 id='history-heading'>Recommendation history</h2>
-          <p>Review pending recommendations and track recorded decisions.</p>
-        </div>
-        <Button startIcon={<ReplayOutlined />} disabled={!ready} onClick={() => setAttempt((count) => count + 1)}>Refresh</Button>
-      </div>
+    <Paper component='section' elevation={0} aria-labelledby='history-heading' sx={{ p: 3, borderRadius: 3 }}>
+      <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1} sx={{ mb: 2 }}>
+        <Typography id='history-heading' variant='h6' component='h2'>Recommendation history</Typography>
+        <Button variant='outlined' disabled={!ready} onClick={() => setAttempt((count) => count + 1)}>Refresh</Button>
+      </Stack>
+
       {!ready ? (
-        <div className='rp-empty' role='status'><CircularProgress size={24} /> Loading recommendations…</div>
+        <Stack direction='row' justifyContent='center' sx={{ py: 4 }} role='status' aria-label='Loading recommendations'>
+          <CircularProgress size={24} />
+        </Stack>
       ) : error ? (
-        <Alert severity='error' action={<Button color='inherit' onClick={() => setAttempt((count) => count + 1)}>Retry</Button>}>{error}</Alert>
-      ) : items.length === 0 && offset === 0 ? (
-        <div className='rp-empty'>
-          <FactCheckOutlined />
-          <strong>No recommendations yet</strong>
-          <p>Generate an order recommendation to start your review history.</p>
-          <Button onClick={onPlan} variant='outlined'>Open planning</Button>
-        </div>
+        <Alert severity='error' action={<Button color='inherit' onClick={() => setAttempt((count) => count + 1)}>Retry</Button>}>
+          {error}
+        </Alert>
       ) : (
         <>
-          <TableContainer className='rp-table-wrap'>
-            <Table className='rp-table'>
+          <TableContainer>
+            <Table size='small'>
               <TableHead>
                 <TableRow>
-                  <TableCell scope='col'>Product</TableCell><TableCell scope='col'>Review date</TableCell><TableCell scope='col'>Mode</TableCell>
-                  <TableCell scope='col'>Suggested order</TableCell><TableCell scope='col'>Status</TableCell><TableCell scope='col'>Details</TableCell>
+                  <TableCell scope='col'>Product</TableCell>
+                  <TableCell scope='col'>SKU</TableCell>
+                  <TableCell scope='col'>Review date</TableCell>
+                  <TableCell scope='col'>Mode</TableCell>
+                  <TableCell scope='col' align='right'>Suggested order</TableCell>
+                  <TableCell scope='col'>Status</TableCell>
+                  <TableCell scope='col' align='right'>Details</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {items.map((item) => {
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} sx={{ color: 'text.secondary' }}>
+                      {offset ? 'No recommendations on this page.' : 'No recommendations yet.'}
+                    </TableCell>
+                  </TableRow>
+                ) : items.map((item) => {
                   const product = products.find((product) => product.id === item.product_id)
                   return (
-                    <TableRow key={item.id}>
-                      <TableCell component='th' scope='row'>
-                        <strong>{product?.name ?? `Product #${item.product_id}`}</strong>
-                        <small>{product?.sku ? `${product.sku} · ` : ''}#{item.id}</small>
-                      </TableCell>
-                      <TableCell>{formatDay(item.snapshot.decision_date)}</TableCell>
+                    <TableRow key={item.id} hover>
+                      <TableCell component='th' scope='row'>{product?.name ?? `Product #${item.product_id}`}</TableCell>
+                      <TableCell>{product?.sku ?? '—'}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDay(item.snapshot.decision_date)}</TableCell>
                       <TableCell>{item.snapshot.mode === 'live' ? 'Live' : 'Simulation'}</TableCell>
-                      <TableCell>
+                      <TableCell align='right'>
                         {formatQuantity(item.suggested_quantity)} units
-                        {item.snapshot.result.stockout_risk && <small className='rp-stock-negative'>Stockout risk</small>}
+                        {item.snapshot.result.stockout_risk && (
+                          <Typography variant='body2' sx={{ fontWeight: 600 }}>Stockout risk</Typography>
+                        )}
                       </TableCell>
-                      <TableCell><span className={item.status === 'pending' ? 'rp-badge rp-badge-strong' : 'rp-badge'}>{item.status}</span></TableCell>
-                      <TableCell><Button size='small' onClick={() => onOpen(item)} aria-label={`View recommendation ${item.id}`}>View</Button></TableCell>
+                      <TableCell>
+                        <Chip label={item.status} size='small' variant={item.status === 'pending' ? 'outlined' : 'filled'}
+                          sx={{ textTransform: 'capitalize' }} />
+                      </TableCell>
+                      <TableCell align='right'>
+                        <Button size='small' onClick={() => onOpen(item)} aria-label={`View recommendation ${item.id}`}>
+                          View
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   )
                 })}
               </TableBody>
             </Table>
           </TableContainer>
-          <div className='rp-pagination'>
-            <span className='rp-small'>{items.length ? `Showing ${offset + 1}–${offset + items.length}` : 'No recommendations on this page'}</span>
-            <Button size='small' disabled={!offset} onClick={() => setOffset(offset - pageSize)}>Previous</Button>
-            <Button size='small' disabled={!hasNext} onClick={() => setOffset(offset + pageSize)}>Next</Button>
-          </div>
+          {(hasNext || offset > 0) && (
+            <Stack direction='row' alignItems='center' justifyContent='flex-end' spacing={1} sx={{ mt: 2 }}>
+              <Typography variant='body2' color='text.secondary' sx={{ flexGrow: 1 }}>
+                {items.length ? `Showing ${offset + 1}–${offset + items.length}` : 'No results'}
+              </Typography>
+              <Button size='small' disabled={!offset} onClick={() => setOffset(offset - pageSize)}>Previous</Button>
+              <Button size='small' disabled={!hasNext} onClick={() => setOffset(offset + pageSize)}>Next</Button>
+            </Stack>
+          )}
         </>
       )}
     </Paper>

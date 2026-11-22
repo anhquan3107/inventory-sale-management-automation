@@ -1,8 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Alert, Button, Paper, TextField } from '@mui/material'
-import ShowChartOutlined from '@mui/icons-material/ShowChartOutlined'
-import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined'
-import CheckCircleOutline from '@mui/icons-material/CheckCircleOutline'
+import { Alert, Box, Button, Paper, Stack, TextField, Typography } from '@mui/material'
 import type { SalesCoverage, WeeklyForecast } from '../../types/replenishment'
 import { decisionError, replenishmentApi } from '../../api/replenishment'
 import { addDays, forecastIssue, formatDay, formatQuantity, isMonday, lastMonday, modelLabel, todayUtc, weekLabel } from './format'
@@ -61,30 +58,32 @@ export default function ForecastForm({ productId, protectionWeeks, policyDirty, 
   }
 
   return (
-    <Paper component='section' variant='outlined' className='rp-card' aria-labelledby='forecast-heading'>
-      <div className='rp-card-heading'>
-        <span className='rp-section-icon'><ShowChartOutlined fontSize='small' /></span>
-        <div>
-          <h2 id='forecast-heading'>Weekly demand forecast</h2>
-          <p>Use evaluated demand to cover the saved protection period.</p>
-        </div>
-      </div>
-      <div className='rp-form'>
-        <div className='rp-coverage'>
-          <CalendarMonthOutlined fontSize='small' aria-hidden='true' />
-          <div>
-            <strong>Sales coverage</strong>
-            <span>{coverage ? `${formatDay(coverage.observed_from)} – ${formatDay(coverage.observed_through)}` : 'Complete sales dates are required to generate a forecast.'}</span>
-          </div>
-          <Button size='small' onClick={() => setCoverageOpen(true)} disabled={!!busy}>
-            {coverage ? 'Edit coverage' : 'Set coverage'}
-          </Button>
-        </div>
-        <form className='rp-forecast-controls' onSubmit={generate}>
+    <Paper component='section' elevation={0} aria-labelledby='forecast-heading' sx={{ p: 3, borderRadius: 3 }}>
+      <Typography id='forecast-heading' variant='h6' component='h2' sx={{ mb: 2 }}>
+        Weekly demand forecast
+      </Typography>
+
+      <Stack spacing={1.5}>
+        <Paper elevation={0} sx={{ p: 2, borderRadius: 2, bgcolor: '#fafafa' }}>
+          <Stack direction='row' alignItems='center' justifyContent='space-between' useFlexGap flexWrap='wrap' spacing={1}>
+            <Box>
+              <Typography variant='body2' color='text.secondary'>Sales coverage</Typography>
+              <Typography variant='body1' sx={{ fontWeight: 600 }}>
+                {coverage ? `${formatDay(coverage.observed_from)} – ${formatDay(coverage.observed_through)}` : 'No coverage declared'}
+              </Typography>
+            </Box>
+            <Button size='small' variant='outlined' onClick={() => setCoverageOpen(true)} disabled={!!busy}>
+              {coverage ? 'Edit coverage' : 'Set coverage'}
+            </Button>
+          </Stack>
+        </Paper>
+
+        <Stack component='form' onSubmit={generate} spacing={1.5}>
           <TextField
             label='Review date (UTC)'
             type='date'
             size='small'
+            fullWidth
             required
             value={date}
             onChange={(event) => {
@@ -101,32 +100,36 @@ export default function ForecastForm({ productId, protectionWeeks, policyDirty, 
             disabled={!!busy || !protectionWeeks || policyDirty || !covered}>
             Generate forecast
           </Button>
-        </form>
+        </Stack>
+
         {coverage && monday && !covered && (
           <Alert severity='warning'>Use a Monday covered through the preceding Sunday, or update sales coverage.</Alert>
         )}
-        <details className='rp-existing-run'>
-          <summary>Use an existing forecast</summary>
-          <form className='rp-forecast-controls' onSubmit={(event) => { event.preventDefault(); void run('load') }}>
+
+        <Box component='details' sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+          <Typography component='summary' variant='body2' sx={{ fontWeight: 600, cursor: 'pointer' }}>
+            Use an existing forecast
+          </Typography>
+          <Stack component='form' spacing={1.5} sx={{ mt: 1.5 }}
+            onSubmit={(event) => { event.preventDefault(); void run('load') }}>
             <TextField label='Forecast run ID' size='small' value={runId} disabled={!!busy}
               onChange={(event) => setRunId(event.target.value)} helperText='Leave blank to load the latest run.' />
             <Button type='submit' variant='outlined' disabled={!!busy} loading={busy === 'load'}>Load forecast</Button>
-          </form>
-        </details>
+          </Stack>
+        </Box>
+
         {error && <Alert severity='error'>{error}</Alert>}
         {issue && <Alert severity='warning'>{issue}</Alert>}
         {forecast && !issue && forecast.accuracy && (
-          <div className='rp-forecast-ready' role='status'>
-            <CheckCircleOutline fontSize='small' aria-hidden='true' />
-            <div>
-              <strong>Evaluated weekly forecast</strong>
-              <span>{weekLabel(forecast.predictions.length)} · {modelLabel(forecast.accuracy.selected_model)}
-                {forecast.accuracy.mae != null && ` · MAE ${formatQuantity(forecast.accuracy.mae)} units`}
-              </span>
-            </div>
-          </div>
+          <Alert severity='success' role='status'>
+            <Typography variant='body2' sx={{ fontWeight: 600 }}>Evaluated weekly forecast</Typography>
+            <Typography variant='body2'>
+              {weekLabel(forecast.predictions.length)} · {modelLabel(forecast.accuracy.selected_model)}
+              {forecast.accuracy.mae != null && ` · MAE ${formatQuantity(forecast.accuracy.mae)} units`}
+            </Typography>
+          </Alert>
         )}
-      </div>
+      </Stack>
       {coverageOpen && <CoverageDialog productId={productId} coverage={coverage}
         onSave={onCoverage} onClose={() => setCoverageOpen(false)} />}
     </Paper>

@@ -1,7 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Alert, Button, InputAdornment, Paper, TextField } from '@mui/material'
-import TuneOutlined from '@mui/icons-material/TuneOutlined'
-import SaveOutlined from '@mui/icons-material/SaveOutlined'
+import { Alert, Button, Grid, InputAdornment, Paper, Stack, TextField, Typography } from '@mui/material'
 import { decisionError, replenishmentApi } from '../../api/replenishment'
 import type { PolicyValues, ReplenishmentPolicy } from '../../types/replenishment'
 import { integerInRange, weekLabel } from './format'
@@ -107,21 +105,14 @@ export default function PolicyForm({ productId, policy, onSave, onDirtyChange }:
   }
 
   return (
-    <Paper component='section' variant='outlined' className='rp-card' aria-labelledby='policy-heading'>
-      <div className='rp-card-heading'>
-        <span className='rp-section-icon'><TuneOutlined fontSize='small' /></span>
-        <div>
-          <h2 id='policy-heading'>Replenishment policy</h2>
-          <p>Set the timing and order constraints for this product.</p>
-        </div>
-      </div>
-      <form onSubmit={save} className='rp-form'>
-        <div className='rp-fields'>
-          {fields.map(({ key, label, unit }) => (
+    <Stack component='form' onSubmit={save} spacing={1.5}>
+      <Grid container spacing={1.5}>
+        {fields.map(({ key, label, unit }) => (
+          <Grid key={key} size={{ xs: 12, sm: 6 }}>
             <TextField
-              key={key}
               label={label}
               size='small'
+              fullWidth
               required
               disabled={saving}
               value={draft[key]}
@@ -131,24 +122,27 @@ export default function PolicyForm({ productId, policy, onSave, onDirtyChange }:
                 input: { endAdornment: <InputAdornment position='end'>{unit}</InputAdornment> },
               }}
             />
-          ))}
-        </div>
-        <div className='rp-protection'>
-          <div>
-            <strong>Protection period</strong>
-            <span>Lead time + review interval</span>
-          </div>
-          <b>{validWeeks ? weekLabel(protectionWeeks) : '—'}</b>
-        </div>
-        {error && <Alert severity='error'>{error}</Alert>}
-        {saved && <Alert severity='success'>Policy saved as version {policy?.version}.</Alert>}
-        <div className='rp-actions'>
-          <Button type='submit' variant='contained' loading={saving} disabled={!!policy && !dirty} startIcon={<SaveOutlined />}>
-            Save policy
-          </Button>
-          {dirty && <Button onClick={reset} disabled={saving}>Reset edits</Button>}
-        </div>
-      </form>
-    </Paper>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Paper elevation={0} sx={{ p: 2, borderRadius: 2, bgcolor: '#fafafa' }}>
+        <Typography variant='body2' color='text.secondary'>Protection period</Typography>
+        <Typography variant='body1' sx={{ fontWeight: 600 }}>
+          {validWeeks ? weekLabel(protectionWeeks) : '—'}
+        </Typography>
+        <Typography variant='body2' color='text.secondary'>Lead time + review interval</Typography>
+      </Paper>
+
+      {error && <Alert severity='error'>{error}</Alert>}
+      {saved && <Alert severity='success'>Policy saved as version {policy?.version}.</Alert>}
+
+      <Stack direction='row' spacing={1} justifyContent='flex-end'>
+        {dirty && <Button onClick={reset} disabled={saving}>Reset edits</Button>}
+        <Button type='submit' variant='contained' loading={saving} disabled={!!policy && !dirty}>
+          Save policy
+        </Button>
+      </Stack>
+    </Stack>
   )
 }

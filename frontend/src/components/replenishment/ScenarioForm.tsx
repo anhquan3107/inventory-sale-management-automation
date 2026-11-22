@@ -1,9 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
-import { Alert, Button, Checkbox, FormControlLabel, IconButton, Paper, Radio, RadioGroup, TextField } from '@mui/material'
-import AddOutlined from '@mui/icons-material/AddOutlined'
-import CalculateOutlined from '@mui/icons-material/CalculateOutlined'
-import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined'
-import ScienceOutlined from '@mui/icons-material/ScienceOutlined'
+import { Alert, Button, Checkbox, FormControlLabel, Grid, IconButton, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material'
 import DeleteOutline from '@mui/icons-material/DeleteOutline'
 import { decisionError, replenishmentApi } from '../../api/replenishment'
 import type {
@@ -94,71 +90,86 @@ export default function ScenarioForm({ productId, policy, policyDirty, forecast,
   }
 
   return (
-    <Paper component='section' variant='outlined' className='rp-card' aria-labelledby='scenario-heading'>
-      <div className='rp-card-heading'>
-        <span className='rp-section-icon'><CalculateOutlined fontSize='small' /></span>
-        <div>
-          <h2 id='scenario-heading'>Order recommendation</h2>
-          <p>Choose the inventory inputs for the calculation.</p>
-        </div>
-      </div>
-      <form onSubmit={generate} className='rp-form'>
-        <RadioGroup className='rp-mode-group' aria-label='Inventory mode' name='replenishment-mode' value={mode}
-          onChange={(_, value) => { setMode(value as RecommendationMode); setConfirmed(false); setError('') }}>
-          {([
-            ['simulation', 'Simulation', 'Enter stock and receipts', <ScienceOutlined fontSize='small' />],
-            ['live', 'Live inventory', 'Use recorded on-hand stock', <Inventory2Outlined fontSize='small' />],
-          ] as const).map(([value, label, description, icon]) => (
-            <FormControlLabel className='rp-mode' key={value} data-selected={mode === value}
-              value={value} control={<Radio size='small' />} disabled={busy}
-              label={<>{icon}<span><strong>{label}</strong><small>{description}</small></span></>} />
-          ))}
-        </RadioGroup>
-        {mode === 'simulation' ? (
-          <>
-            <TextField label='Simulated on-hand stock' size='small' required value={onHand}
-              disabled={busy} onChange={(event) => { setOnHand(event.target.value); setError('') }}
-              slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
-            <div className='rp-receipts'>
-              <div className='rp-receipts-heading'>
-                <strong>Expected receipts <span>(optional)</span></strong>
-                <Button startIcon={<AddOutlined />} size='small' onClick={addReceipt} disabled={busy || receipts.length >= 100}>
-                  Add receipt
-                </Button>
-              </div>
-              {receipts.length > 0 && <p className='rp-small rp-no-margin'>Receipts arrive at the start of the selected week. Week 1 starts on the review date.</p>}
-              {receipts.map(({ id, arrivalWeek, quantity }, index) => (
-                <div className='rp-receipt-row' key={id}>
-                  <TextField label={`Receipt ${index + 1} arrival week`} size='small' required value={arrivalWeek}
-                    disabled={busy} onChange={(event) => changeReceipt(id, 'arrivalWeek', event.target.value)}
-                    slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
-                  <TextField label={`Receipt ${index + 1} units`} size='small' required value={quantity}
-                    disabled={busy} onChange={(event) => changeReceipt(id, 'quantity', event.target.value)}
-                    slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
-                  <IconButton aria-label={`Remove receipt ${index + 1}`} disabled={busy}
-                    onClick={() => { setReceipts((items) => items.filter((item) => item.id !== id)); setError('') }}>
-                    <DeleteOutline />
-                  </IconButton>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : (
-          <FormControlLabel
-            control={<Checkbox checked={confirmed} disabled={busy || !liveAvailable}
-              onChange={(event) => { setConfirmed(event.target.checked); setError('') }} />}
-            label='I confirm there are no incoming supplier orders for this product.'
-          />
+    <Paper component='section' elevation={0} aria-labelledby='scenario-heading' sx={{ p: 3, borderRadius: 3 }}>
+      <Typography id='scenario-heading' variant='h6' component='h2' sx={{ mb: 2 }}>
+        Order recommendation
+      </Typography>
+
+      <Stack component='form' onSubmit={generate} spacing={1.5}>
+        <Grid container spacing={1.5}>
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
+            <TextField
+              select
+              label='Inventory mode'
+              size='small'
+              fullWidth
+              value={mode}
+              disabled={busy}
+              onChange={(event) => {
+                setMode(event.target.value as RecommendationMode)
+                setConfirmed(false)
+                setError('')
+              }}
+            >
+              <MenuItem value='simulation'>Simulation</MenuItem>
+              <MenuItem value='live'>Live inventory</MenuItem>
+            </TextField>
+          </Grid>
+
+          <Grid size={{ xs: 12, sm: 6, lg: 8 }}>
+            {mode === 'simulation' ? (
+              <TextField label='Simulated on-hand stock' size='small' fullWidth required value={onHand}
+                disabled={busy} onChange={(event) => { setOnHand(event.target.value); setError('') }}
+                slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+            ) : (
+              <FormControlLabel
+                control={<Checkbox checked={confirmed} disabled={busy || !liveAvailable}
+                  onChange={(event) => { setConfirmed(event.target.checked); setError('') }} />}
+                label='I confirm there are no incoming supplier orders for this product.'
+              />
+            )}
+          </Grid>
+        </Grid>
+
+        {mode === 'simulation' && (
+          <Stack spacing={1.5}>
+            <Stack direction='row' alignItems='center' justifyContent='space-between' useFlexGap flexWrap='wrap' spacing={1}>
+              <Typography variant='body2' sx={{ fontWeight: 600 }}>Expected receipts (optional)</Typography>
+              <Button size='small' variant='outlined' onClick={addReceipt} disabled={busy || receipts.length >= 100}>
+                Add receipt
+              </Button>
+            </Stack>
+            {receipts.length > 0 && (
+              <Typography variant='body2' color='text.secondary'>
+                Receipts arrive at the start of the selected week. Week 1 starts on the review date.
+              </Typography>
+            )}
+            {receipts.map(({ id, arrivalWeek, quantity }, index) => (
+              <Stack key={id} direction='row' spacing={1.5} alignItems='center'>
+                <TextField label={`Receipt ${index + 1} arrival week`} size='small' fullWidth required value={arrivalWeek}
+                  disabled={busy} onChange={(event) => changeReceipt(id, 'arrivalWeek', event.target.value)}
+                  slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <TextField label={`Receipt ${index + 1} units`} size='small' fullWidth required value={quantity}
+                  disabled={busy} onChange={(event) => changeReceipt(id, 'quantity', event.target.value)}
+                  slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <IconButton aria-label={`Remove receipt ${index + 1}`} disabled={busy}
+                  onClick={() => { setReceipts((items) => items.filter((item) => item.id !== id)); setError('') }}>
+                  <DeleteOutline />
+                </IconButton>
+              </Stack>
+            ))}
+          </Stack>
         )}
+
         {error && <Alert severity='error'>{error}</Alert>}
-        <div className='rp-actions'>
+        <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ sm: 'center' }} justifyContent='flex-end' spacing={1.5}>
+          {blocker && <Typography variant='body2' color='text.secondary'>{blocker}</Typography>}
           <Button type='submit' variant='contained' loading={busy}
-            disabled={!!blocker || (mode === 'live' && !confirmed)} startIcon={<CalculateOutlined />}>
+            disabled={!!blocker || (mode === 'live' && !confirmed)}>
             Generate recommendation
           </Button>
-          {blocker && <span className='rp-small'>{blocker}</span>}
-        </div>
-      </form>
+        </Stack>
+      </Stack>
     </Paper>
   )
 }

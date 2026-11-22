@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import {
   Alert, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle,
-  FormControlLabel, TextField,
+  FormControlLabel, Grid, Stack, TextField, Typography,
 } from '@mui/material'
 import { decisionError, replenishmentApi } from '../../api/replenishment'
 import type { SalesCoverage } from '../../types/replenishment'
@@ -65,26 +65,36 @@ export default function CoverageDialog({ productId, coverage, onSave, onClose }:
       <form onSubmit={save}>
         <DialogTitle id='coverage-title'>Sales coverage</DialogTitle>
         <DialogContent dividers>
-          <div className='rp-form'>
-            <p className='rp-muted rp-no-margin'>Declare a continuous period with complete sales records. The forecast treats days without transactions in this period as zero-sales days.</p>
-            <div className='rp-fields'>
-              <TextField label='First observed day (UTC)' type='date' required disabled={saving}
-                value={from} onChange={(event) => setFrom(event.target.value)}
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: through || yesterday } }} />
-              <TextField label='Last observed day (UTC)' type='date' required disabled={saving}
-                value={through} onChange={(event) => setThrough(event.target.value)}
-                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: from, max: yesterday } }} />
-              <TextField label='Sales source' required disabled={saving} value={source}
-                onChange={(event) => setSource(event.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
-              <TextField label='Dataset version' required disabled={saving} value={version}
-                onChange={(event) => setVersion(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
-            </div>
+          <Stack spacing={1.5}>
+            <Typography variant='body2' color='text.secondary'>
+              Declare a continuous period with complete sales records. The forecast treats days without transactions in this period as zero-sales days.
+            </Typography>
+            <Grid container spacing={1.5}>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label='First observed day (UTC)' type='date' size='small' fullWidth required disabled={saving}
+                  value={from} onChange={(event) => setFrom(event.target.value)}
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: through || yesterday } }} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label='Last observed day (UTC)' type='date' size='small' fullWidth required disabled={saving}
+                  value={through} onChange={(event) => setThrough(event.target.value)}
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: from, max: yesterday } }} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label='Sales source' size='small' fullWidth required disabled={saving} value={source}
+                  onChange={(event) => setSource(event.target.value)} slotProps={{ htmlInput: { maxLength: 80 } }} />
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField label='Dataset version' size='small' fullWidth required disabled={saving} value={version}
+                  onChange={(event) => setVersion(event.target.value)} slotProps={{ htmlInput: { maxLength: 100 } }} />
+              </Grid>
+            </Grid>
             <FormControlLabel
               control={<Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)} disabled={saving} />}
               label='I confirm sales records are complete for every day in this period.'
             />
             {error && <Alert severity='error'>{error}</Alert>}
-          </div>
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose} disabled={saving}>Cancel</Button>

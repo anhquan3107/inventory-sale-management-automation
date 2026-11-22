@@ -1,13 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Autocomplete, Button, Chip, CircularProgress, Paper, Tab, Tabs, TextField,
-  ThemeProvider, Typography, createFilterOptions, createTheme,
+  Alert, Autocomplete, Box, Button, Chip, CircularProgress, Grid, Paper, Stack,
+  TextField, ThemeProvider, Typography, createFilterOptions, createTheme,
 } from '@mui/material'
-import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined'
-import EventRepeatOutlined from '@mui/icons-material/EventRepeatOutlined'
-import FactCheckOutlined from '@mui/icons-material/FactCheckOutlined'
-import Inventory2Outlined from '@mui/icons-material/Inventory2Outlined'
-import InfoOutlined from '@mui/icons-material/InfoOutlined'
 import { productsApi } from '../api/products'
 import { decisionError, replenishmentApi } from '../api/replenishment'
 import { useAuth } from '../hooks/use-auth'
@@ -19,10 +14,16 @@ import ForecastForm from '../components/replenishment/ForecastForm'
 import ScenarioForm from '../components/replenishment/ScenarioForm'
 import RecommendationHistory from '../components/replenishment/RecommendationHistory'
 import RecommendationDetail from '../components/replenishment/RecommendationDetail'
-import { weekLabel } from '../components/replenishment/format'
-import './Replenishment.css'
 
 const workspaceTheme = createTheme(theme, {
+  palette: {
+    error: {
+      main: theme.palette.text.primary,
+      light: theme.palette.grey[500],
+      dark: theme.palette.grey[900],
+      contrastText: theme.palette.common.white,
+    },
+  },
   components: {
     MuiAlert: {
       styleOverrides: {
@@ -48,49 +49,102 @@ interface PlanningData {
 }
 
 interface PlanningProps {
-  product: ProductResponse
-  policy?: ReplenishmentPolicy
-  coverage?: SalesCoverage
+  products: ProductResponse[]
+  policies: ReplenishmentPolicy[]
+  coverage: SalesCoverage[]
   onSavePolicy: (policy: ReplenishmentPolicy) => void
   onSaveCoverage: (coverage: SalesCoverage) => void
   onGenerate: (result: Recommendation) => void
 }
 
-function Planning({ product, policy, coverage, onSavePolicy, onSaveCoverage, onGenerate }: PlanningProps) {
-  const [policyDirty, setPolicyDirty] = useState(false)
-  const [forecast, setForecast] = useState<WeeklyForecast | null>(null)
+interface PlanningSelection {
+  productId: number
+  revision: number
+  policyDirty: boolean
+  forecast: WeeklyForecast | null
+}
+
+function Planning({ products, policies, coverage, onSavePolicy, onSaveCoverage, onGenerate }: PlanningProps) {
+  const [selection, setSelection] = useState<PlanningSelection>({
+    productId: products[0].id,
+    revision: 0,
+    policyDirty: false,
+    forecast: null,
+  })
+  const { productId, revision, policyDirty, forecast } = selection
+  const product = products.find((item) => item.id === productId) ?? products[0]
+  const policy = policies.find((item) => item.product_id === product.id)
+  const productCoverage = coverage.find((item) => item.product_id === product.id)
   const protectionWeeks = policy ? policy.lead_time_weeks + policy.review_interval_weeks : undefined
 
+  function updateSelection(values: Partial<Pick<PlanningSelection, 'policyDirty' | 'forecast'>>) {
+    setSelection((current) => current.revision === revision ? { ...current, ...values } : current)
+  }
+
   return (
-    <div className='rp-planning'>
-      <div className='rp-column'>
-        <PolicyForm productId={product.id} policy={policy} onSave={onSavePolicy} onDirtyChange={setPolicyDirty} />
-        <aside className='rp-guide' aria-labelledby='guide-heading'>
-          <AccountTreeOutlined fontSize='small' aria-hidden='true' />
-          <div>
-            <h2 id='guide-heading'>How the policy works</h2>
-            <p>The target covers forecast demand during lead time and the time until the next review, plus safety stock.</p>
-            <p>When inventory position falls short of the target, the suggested order meets the minimum and rounds up to a full pack.</p>
-          </div>
-        </aside>
-      </div>
-      <div className='rp-column'>
-        <ForecastForm productId={product.id} protectionWeeks={protectionWeeks} policyDirty={policyDirty}
-          coverage={coverage} forecast={forecast} onCoverage={onSaveCoverage} onForecast={setForecast} />
-        <ScenarioForm productId={product.id} policy={policy} policyDirty={policyDirty} forecast={forecast}
-          onGenerate={onGenerate} />
-      </div>
-    </div>
+    <>
+      <Grid size={{ xs: 12, lg: 6 }}>
+        <Paper component='section' elevation={0} aria-labelledby='policy-heading' sx={{ p: 3, borderRadius: 3 }}>
+          <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1} sx={{ mb: 2 }}>
+            <Typography id='policy-heading' variant='h6' component='h2'>Replenishment policy</Typography>
+            <Chip size='small' label={policy ? `Version ${policy.version}` : 'Setup required'} />
+          </Stack>
+
+          <Stack spacing={1.5}>
+            <Autocomplete
+              options={products}
+              value={product}
+              onChange={(_, selected) => {
+                setSelection((current) => current.productId === selected.id ? current : {
+                  productId: selected.id,
+                  revision: current.revision + 1,
+                  policyDirty: false,
+                  forecast: null,
+                })
+              }}
+              disableClearable
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              filterOptions={filterProducts}
+              getOptionLabel={(option) => option.name}
+              getOptionKey={(option) => option.id}
+              renderOption={({ key, ...props }, option) => (
+                <Box component='li' key={key} {...props}>
+                  <Box>
+                    {option.name}
+                    <Typography variant='body2' color='text.secondary'>{option.sku}</Typography>
+                  </Box>
+                </Box>
+              )}
+              size='small'
+              fullWidth
+              renderInput={(params) => <TextField {...params} label='Planning product' helperText={product.sku} />}
+            />
+            <PolicyForm key={product.id} productId={product.id} policy={policy}
+              onSave={onSavePolicy} onDirtyChange={(policyDirty) => updateSelection({ policyDirty })} />
+          </Stack>
+        </Paper>
+      </Grid>
+
+      <Grid size={{ xs: 12, lg: 6 }}>
+        <ForecastForm key={product.id} productId={product.id} protectionWeeks={protectionWeeks}
+          policyDirty={policyDirty} coverage={productCoverage} forecast={forecast}
+          onCoverage={onSaveCoverage} onForecast={(forecast) => updateSelection({ forecast })} />
+      </Grid>
+
+      <Grid size={12}>
+        <ScenarioForm key={product.id} productId={product.id} policy={policy}
+          policyDirty={policyDirty} forecast={forecast} onGenerate={onGenerate} />
+      </Grid>
+    </>
   )
 }
 
 function ReplenishmentWorkspace() {
-  const [tab, setTab] = useState('planning')
-  const [productId, setProductId] = useState<number | null>(null)
   const [data, setData] = useState<PlanningData | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [detail, setDetail] = useState<Recommendation | null>(null)
+  const [lastGeneratedId, setLastGeneratedId] = useState<number>()
   const [reviewed, setReviewed] = useState<Record<number, Recommendation>>({})
 
   useEffect(() => {
@@ -107,10 +161,6 @@ function ReplenishmentWorkspace() {
 
   const products = data?.products ?? []
   const activeProducts = products.filter((product) => product.is_active).sort((a, b) => a.name.localeCompare(b.name))
-  const product = activeProducts.find((item) => item.id === productId)
-    ?? activeProducts[0]
-  const policy = data?.policies.find((item) => item.product_id === product?.id)
-  const coverage = data?.coverage.find((item) => item.product_id === product?.id)
   const detailProduct = products.find((item) => item.id === detail?.product_id)
 
   function savePolicy(policy: ReplenishmentPolicy) {
@@ -128,86 +178,61 @@ function ReplenishmentWorkspace() {
   }
 
   return (
-    <>
-      <div className='rp-workspace'>
-        <header className='rp-header'>
-          <div>
+    <Box>
+      <Paper
+        component='header'
+        elevation={0}
+        sx={{
+          p: 3,
+          mb: 3,
+          borderRadius: 3,
+          background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%)',
+        }}
+      >
+        <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1}>
+          <Box>
             <Typography variant='h5' component='h1' sx={{ mb: 0.5 }}>Replenishment</Typography>
             <Typography variant='body2' color='text.secondary'>
               Plan weekly stock orders using product policies and forecast demand.
             </Typography>
-          </div>
-          <Chip size='small' variant='outlined' icon={<InfoOutlined />} label='Advisory decisions only' />
-        </header>
+          </Box>
+          <Chip size='small' label='Advisory decisions only' />
+        </Stack>
+      </Paper>
 
-        <Tabs className='rp-tabs' aria-label='Replenishment workspace' value={tab}
-          onChange={(_, value: string) => setTab(value)}>
-          <Tab id='rp-planning-tab' aria-controls='rp-planning-panel' icon={<EventRepeatOutlined />} iconPosition='start' label='Planning' value='planning' />
-          <Tab id='rp-history-tab' aria-controls='rp-history-panel' icon={<FactCheckOutlined />} iconPosition='start' label='Recommendations' value='history' />
-        </Tabs>
-
-        <div role='tabpanel' id='rp-planning-panel' aria-labelledby='rp-planning-tab' hidden={tab !== 'planning'}>
-          {error ? (
+      <Grid container spacing={3}>
+        {error ? (
+          <Grid size={12}>
             <Alert severity='error' action={
               <Button color='inherit' onClick={() => { setError(''); setAttempt((count) => count + 1) }}>Retry</Button>
             }>{error}</Alert>
-          ) : !data ? (
-            <div className='rp-card rp-empty' role='status'><CircularProgress size={24} /> Loading planning workspace…</div>
-          ) : !product ? (
-            <div className='rp-card rp-empty'>
-              <Inventory2Outlined />
-              <strong>No active products</strong>
-              <p>Activate a product to configure its replenishment policy.</p>
-            </div>
-          ) : (
-            <>
-              <Paper component='section' variant='outlined' className='rp-product-strip' aria-label='Product context'>
-                <div className='rp-product-picker'>
-                  <span className='rp-product-icon'><Inventory2Outlined fontSize='small' /></span>
-                  <Autocomplete
-                    options={activeProducts}
-                    value={product}
-                    onChange={(_, selected) => { if (selected) setProductId(selected.id) }}
-                    disableClearable
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
-                    filterOptions={filterProducts}
-                    getOptionLabel={(option) => option.name}
-                    getOptionKey={(option) => option.id}
-                    renderOption={({ key, ...props }, option) => (
-                      <li key={key} {...props}><span className='rp-product-option'>{option.name}<small>{option.sku}</small></span></li>
-                    )}
-                    size='small'
-                    fullWidth
-                    renderInput={(params) => <TextField {...params} label='Planning product' helperText={product.sku} />}
-                  />
-                </div>
-                <dl className='rp-product-summary'>
-                  <div>
-                    <dt>Saved policy</dt>
-                    <dd><span className={policy ? 'rp-badge' : 'rp-badge rp-badge-strong'}>{policy ? `Version ${policy.version}` : 'Setup required'}</span></dd>
-                  </div>
-                  <div>
-                    <dt>Protection period</dt>
-                    <dd>{policy ? weekLabel(policy.lead_time_weeks + policy.review_interval_weeks) : '—'}</dd>
-                  </div>
-                  <div>
-                    <dt>Sales coverage</dt>
-                    <dd>{coverage ? 'Declared' : 'Not declared'}</dd>
-                  </div>
-                </dl>
-              </Paper>
-              <Planning key={product.id} product={product} policy={policy} coverage={coverage}
-                onSavePolicy={savePolicy} onSaveCoverage={saveCoverage} onGenerate={setDetail} />
-            </>
-          )}
-        </div>
-        <div role='tabpanel' id='rp-history-panel' aria-labelledby='rp-history-tab' hidden={tab !== 'history'}>
-          {tab === 'history' && (
-            <RecommendationHistory products={products} reviewed={reviewed}
-              onOpen={setDetail} onPlan={() => setTab('planning')} />
-          )}
-        </div>
-      </div>
+          </Grid>
+        ) : !data || !activeProducts.length ? (
+          <Grid size={12}>
+            <Paper elevation={0} sx={{ p: 3, borderRadius: 3 }}>
+              {data ? (
+                <Typography color='text.secondary'>Activate a product to configure its replenishment policy.</Typography>
+              ) : (
+                <Stack direction='row' justifyContent='center' sx={{ py: 4 }} role='status' aria-label='Loading replenishment'>
+                  <CircularProgress size={24} />
+                </Stack>
+              )}
+            </Paper>
+          </Grid>
+        ) : (
+          <Planning products={activeProducts} policies={data.policies} coverage={data.coverage}
+            onSavePolicy={savePolicy} onSaveCoverage={saveCoverage}
+            onGenerate={(result) => {
+              setDetail(result)
+              setLastGeneratedId(result.id)
+            }} />
+        )}
+
+        <Grid size={12}>
+          <RecommendationHistory key={lastGeneratedId} products={products} reviewed={reviewed} onOpen={setDetail} />
+        </Grid>
+      </Grid>
+
       {detail && (
         <RecommendationDetail
           key={detail.id}
@@ -220,7 +245,7 @@ function ReplenishmentWorkspace() {
           onClose={() => setDetail(null)}
         />
       )}
-    </>
+    </Box>
   )
 }
 
