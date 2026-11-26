@@ -17,8 +17,8 @@ interface Props {
 
 export default function RecommendationDetail({ recommendation, productLabel, onUpdate, onClose }: Props) {
   const { snapshot, decision, status } = recommendation
-  const { policy, result } = snapshot
-  const receipts = snapshot.request.simulated_receipts ?? []
+  const { policy, result, diagnostics } = snapshot
+  const receipts = snapshot.request?.simulated_receipts ?? []
   const receiptTotal = receipts.reduce((total, item) => total + item.quantity, 0)
   const [action, setAction] = useState<DecisionAction>('approved')
   const [quantity, setQuantity] = useState(String(recommendation.suggested_quantity))
@@ -61,13 +61,40 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
     }
   }
 
+  const history = decision && (
+    <Stack spacing={1} role='status'>
+      <Stack direction='row' alignItems='center' useFlexGap flexWrap='wrap' spacing={1}>
+        <Chip label={status} size='small' sx={{ textTransform: 'capitalize' }} />
+        <Typography variant='body2'>{formatQuantity(decision.quantity)} units · {formatTimestamp(decision.created_at)}</Typography>
+      </Stack>
+      <Typography variant='body2' color='text.secondary'>Recorded by user #{decision.user_id}</Typography>
+      {decision.reason && <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{decision.reason}</Typography>}
+    </Stack>
+  )
+
+  if (!policy || !result || !snapshot.request || !Array.isArray(snapshot.forecast)
+    || !Array.isArray(result.projected_week_end_stock) || !snapshot.decision_date) {
+    return (
+      <Dialog open onClose={onClose} fullWidth maxWidth='sm' aria-labelledby='recommendation-title'>
+        <DialogTitle id='recommendation-title'>Recommendation #{recommendation.id}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Alert severity='warning'>This historical snapshot has incomplete evidence.</Alert>
+            {history}
+          </Stack>
+        </DialogContent>
+        <DialogActions><Button onClick={onClose}>Close</Button></DialogActions>
+      </Dialog>
+    )
+  }
+
   const policyFacts = [
     ['Lead time', weekLabel(policy.lead_time_weeks)],
     ['Review interval', weekLabel(policy.review_interval_weeks)],
     ['Lead-time demand', `${formatQuantity(result.lead_time_demand)} units`],
     ['Safety stock', `${formatQuantity(policy.safety_stock)} units`],
     ['Minimum order / pack size', `${formatQuantity(policy.minimum_order_quantity)} / ${formatQuantity(policy.pack_size)} units`],
-    ['Demand model', modelLabel(snapshot.model)],
+    ['Demand model', snapshot.model ? modelLabel(snapshot.model) : 'Unavailable'],
     ['Dataset', snapshot.dataset_version ?? 'Unavailable'],
     ['Forecast run', snapshot.request.run_id],
   ]
@@ -115,12 +142,24 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
               <Box>
                 <Typography id='projection-heading' variant='h6' component='h3'>Projected week-end stock</Typography>
                 <Typography variant='body2' color='text.secondary'>
-                  Based on on-hand stock, forecast demand and existing receipts.
+                  Receipts are added at the start of each week, then forecast demand is subtracted. The suggested order is excluded.
                 </Typography>
               </Box>
-              <Chip size='small' variant={result.stockout_risk ? 'outlined' : 'filled'}
-                label={result.stockout_risk ? 'Stockout risk' : 'No projected stockout'} />
             </Stack>
+            {diagnostics?.status === 'available' ? (
+              diagnostics.first_shortage_period_start && diagnostics.first_shortage_quantity !== null ? (
+                <Alert severity={diagnostics.shortage_during_lead_time ? 'error' : 'warning'} sx={{ mb: 1.5 }}>
+                  Shortage projected in the week beginning {formatDay(diagnostics.first_shortage_period_start)}
+                  {' '}({formatQuantity(diagnostics.first_shortage_quantity)} units short).
+                  {' '}Maximum projected deficit {formatQuantity(diagnostics.maximum_projected_deficit)} units.
+                  {' '}{diagnostics.shortage_during_lead_time ? 'The shortage falls within lead time.' : 'The shortage falls after lead time.'}
+                </Alert>
+              ) : (
+                <Alert severity='info' sx={{ mb: 1.5 }}>No shortage projected during the protection period.</Alert>
+              )
+            ) : (
+              <Alert severity='warning' sx={{ mb: 1.5 }}>Shortage diagnostics are unavailable for this snapshot.</Alert>
+            )}
             <TableContainer>
               <Table size='small'>
                 <TableHead>
@@ -134,6 +173,7 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                 <TableBody>
                   {result.projected_week_end_stock.map((value, index) => {
                     const week = snapshot.forecast[index]
+                    if (!week) return null
                     const incoming = receipts.reduce((total, item) => item.arrival_week === index + 1 ? total + item.quantity : total, 0)
                     return (
                       <TableRow key={week.period_start} hover>
@@ -148,6 +188,18 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
               </Table>
             </TableContainer>
           </Box>
+
+          {diagnostics?.status === 'available' && diagnostics.excess_stock_review
+            && diagnostics.excess_stock_threshold !== null && diagnostics.excess_above_review_threshold !== null && (
+            <Alert severity='warning'>
+              Excess-stock review. Inventory position, including incoming receipts, is
+              {' '}{formatQuantity(diagnostics.excess_above_review_threshold)} units over the threshold of
+              {' '}{formatQuantity(diagnostics.excess_stock_threshold)} units ({diagnostics.excess_stock_factor} times target stock).
+            </Alert>
+          )}
+          {diagnostics?.status === 'available' && diagnostics.zero_demand_stock_review && (
+            <Alert severity='warning'>Review the positive inventory position against a target stock of zero.</Alert>
+          )}
 
           <Box component='details'>
             <Typography component='summary' variant='body2' sx={{ fontWeight: 600, cursor: 'pointer' }}>
@@ -197,16 +249,7 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                   onChange={(event) => { setReason(event.target.value); setError('') }}
                   slotProps={{ htmlInput: { maxLength: 2000 } }} />
               </Stack>
-            ) : decision && (
-              <Stack spacing={1} role='status'>
-                <Stack direction='row' alignItems='center' useFlexGap flexWrap='wrap' spacing={1}>
-                  <Chip label={status} size='small' sx={{ textTransform: 'capitalize' }} />
-                  <Typography variant='body2'>{formatQuantity(decision.quantity)} units · {formatTimestamp(decision.created_at)}</Typography>
-                </Stack>
-                <Typography variant='body2' color='text.secondary'>Recorded by user #{decision.user_id}</Typography>
-                {decision.reason && <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{decision.reason}</Typography>}
-              </Stack>
-            )}
+            ) : history}
             {error && <Alert severity='error' sx={{ mt: 2 }}>{error}</Alert>}
           </Box>
         </Stack>

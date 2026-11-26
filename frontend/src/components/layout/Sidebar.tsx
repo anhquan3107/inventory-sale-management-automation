@@ -16,6 +16,7 @@ import {
   Category as CategoryIcon,
   Inventory as InventoryIcon,
   EventRepeatOutlined,
+  FactCheckOutlined,
 } from '@mui/icons-material'
 import { Link, useLocation } from 'react-router-dom'
 import { useTheme } from '@mui/material/styles'
@@ -26,6 +27,7 @@ const navItems = [
   { label: 'Sales', path: '/sales', icon: <SalesIcon /> },
   { label: 'Products', path: '/products', icon: <CategoryIcon /> },
   { label: 'Inventory', path: '/inventory', icon: <InventoryIcon /> },
+  { label: 'Decisions', path: '/decisions', icon: <FactCheckOutlined />, adminOnly: true },
   { label: 'Replenishment', path: '/replenishment', icon: <EventRepeatOutlined />, adminOnly: true },
 ]
 

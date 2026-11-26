@@ -24,6 +24,14 @@ export const protectedRoutes: RouteObject[] = [
           { path: '/products', element: <Products /> },
           { path: '/inventory', element: <Inventory /> },
           {
+            path: '/decisions',
+            element: (
+              <Suspense fallback={<Box role='status' aria-label='Loading decisions' sx={{ display: 'grid', placeItems: 'center', py: 6 }}><CircularProgress /></Box>}>
+                <Replenishment decisions />
+              </Suspense>
+            ),
+          },
+          {
             path: '/replenishment',
             element: (
               <Suspense fallback={<Box role='status' aria-label='Loading replenishment' sx={{ display: 'grid', placeItems: 'center', py: 6 }}><CircularProgress /></Box>}>

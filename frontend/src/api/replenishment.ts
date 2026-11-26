@@ -3,9 +3,11 @@ import axios from './axios'
 import { API_PATHS } from './paths'
 import type {
   DecisionRequest,
+  ExceptionQuery,
   ForecastAccuracy,
   ForecastPrediction,
   ForecastRun,
+  InventoryExceptionPage,
   PolicyValues,
   Recommendation,
   RecommendationRequest,
@@ -60,6 +62,9 @@ export const replenishmentApi = {
   },
   async generateRecommendation(request: RecommendationRequest) {
     return (await axios.post<Recommendation>(DECISIONS.GENERATE, request)).data
+  },
+  async exceptions(params: ExceptionQuery, signal: AbortSignal) {
+    return (await axios.get<InventoryExceptionPage>(DECISIONS.EXCEPTIONS, { params, signal })).data
   },
   async recommendations(limit: number, offset: number) {
     return (await axios.get<Recommendation[]>(DECISIONS.RECOMMENDATIONS, {

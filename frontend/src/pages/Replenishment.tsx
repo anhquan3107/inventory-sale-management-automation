@@ -11,9 +11,11 @@ import type { ProductResponse } from '../types/product'
 import type { Recommendation, ReplenishmentPolicy, SalesCoverage, WeeklyForecast } from '../types/replenishment'
 import PolicyForm from '../components/replenishment/PolicyForm'
 import ForecastForm from '../components/replenishment/ForecastForm'
+import SavedForecastForm from '../components/replenishment/SavedForecastForm'
 import ScenarioForm from '../components/replenishment/ScenarioForm'
 import RecommendationHistory from '../components/replenishment/RecommendationHistory'
 import RecommendationDetail from '../components/replenishment/RecommendationDetail'
+import ExceptionWorkspace from '../components/replenishment/ExceptionWorkspace'
 
 const workspaceTheme = createTheme(theme, {
   palette: {
@@ -49,6 +51,7 @@ interface PlanningData {
 }
 
 interface PlanningProps {
+  decisions: boolean
   products: ProductResponse[]
   policies: ReplenishmentPolicy[]
   coverage: SalesCoverage[]
@@ -64,7 +67,7 @@ interface PlanningSelection {
   forecast: WeeklyForecast | null
 }
 
-function Planning({ products, policies, coverage, onSavePolicy, onSaveCoverage, onGenerate }: PlanningProps) {
+function Planning({ decisions, products, policies, coverage, onSavePolicy, onSaveCoverage, onGenerate }: PlanningProps) {
   const [selection, setSelection] = useState<PlanningSelection>({
     productId: products[0].id,
     revision: 0,
@@ -126,9 +129,14 @@ function Planning({ products, policies, coverage, onSavePolicy, onSaveCoverage, 
       </Grid>
 
       <Grid size={{ xs: 12, lg: 6 }}>
-        <ForecastForm key={product.id} productId={product.id} protectionWeeks={protectionWeeks}
-          policyDirty={policyDirty} coverage={productCoverage} forecast={forecast}
-          onCoverage={onSaveCoverage} onForecast={(forecast) => updateSelection({ forecast })} />
+        {decisions ? (
+          <SavedForecastForm key={product.id} productId={product.id} protectionWeeks={protectionWeeks}
+            forecast={forecast} onForecast={(forecast) => updateSelection({ forecast })} />
+        ) : (
+          <ForecastForm key={product.id} productId={product.id} protectionWeeks={protectionWeeks}
+            policyDirty={policyDirty} coverage={productCoverage} forecast={forecast}
+            onCoverage={onSaveCoverage} onForecast={(forecast) => updateSelection({ forecast })} />
+        )}
       </Grid>
 
       <Grid size={12}>
@@ -139,17 +147,17 @@ function Planning({ products, policies, coverage, onSavePolicy, onSaveCoverage, 
   )
 }
 
-function ReplenishmentWorkspace() {
+function ReplenishmentWorkspace({ decisions }: { decisions: boolean }) {
   const [data, setData] = useState<PlanningData | null>(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
   const [detail, setDetail] = useState<Recommendation | null>(null)
-  const [lastGeneratedId, setLastGeneratedId] = useState<number>()
+  const [lastGenerated, setLastGenerated] = useState<Recommendation>()
   const [reviewed, setReviewed] = useState<Record<number, Recommendation>>({})
 
   useEffect(() => {
     let ignore = false
-    Promise.all([productsApi.list(), replenishmentApi.policies(), replenishmentApi.coverage()])
+    Promise.all([productsApi.list(), replenishmentApi.policies(), decisions ? [] : replenishmentApi.coverage()])
       .then(([products, policies, coverage]) => {
         if (!ignore) setData({ products, policies, coverage })
       })
@@ -157,11 +165,12 @@ function ReplenishmentWorkspace() {
         if (!ignore) setError(decisionError(error, 'Could not load the planning workspace. Try again.'))
       })
     return () => { ignore = true }
-  }, [attempt])
+  }, [attempt, decisions])
 
   const products = data?.products ?? []
   const activeProducts = products.filter((product) => product.is_active).sort((a, b) => a.name.localeCompare(b.name))
   const detailProduct = products.find((item) => item.id === detail?.product_id)
+  const generatedScope = lastGenerated && { run_id: lastGenerated.snapshot.request.run_id, mode: lastGenerated.snapshot.mode }
 
   function savePolicy(policy: ReplenishmentPolicy) {
     setData((current) => current && ({
@@ -191,9 +200,10 @@ function ReplenishmentWorkspace() {
       >
         <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1}>
           <Box>
-            <Typography variant='h5' component='h1' sx={{ mb: 0.5 }}>Replenishment</Typography>
+            <Typography variant='h5' component='h1' sx={{ mb: 0.5 }}>{decisions ? 'Inventory decisions' : 'Replenishment'}</Typography>
             <Typography variant='body2' color='text.secondary'>
-              Plan weekly stock orders using product policies and forecast demand.
+              {decisions ? 'Review projected shortages and decide how much to replenish.'
+                : 'Plan weekly stock orders using product policies and forecast demand.'}
             </Typography>
           </Box>
           <Chip size='small' label='Advisory decisions only' />
@@ -201,6 +211,12 @@ function ReplenishmentWorkspace() {
       </Paper>
 
       <Grid container spacing={3}>
+        {decisions && (
+          <Grid size={12}>
+            <ExceptionWorkspace key={generatedScope && `${generatedScope.run_id}:${generatedScope.mode}`}
+              initialScope={generatedScope} refreshKey={`${lastGenerated?.id}:${Object.keys(reviewed).length}`} onOpen={setDetail} />
+          </Grid>
+        )}
         {error ? (
           <Grid size={12}>
             <Alert severity='error' action={
@@ -220,16 +236,16 @@ function ReplenishmentWorkspace() {
             </Paper>
           </Grid>
         ) : (
-          <Planning products={activeProducts} policies={data.policies} coverage={data.coverage}
+          <Planning decisions={decisions} products={activeProducts} policies={data.policies} coverage={data.coverage}
             onSavePolicy={savePolicy} onSaveCoverage={saveCoverage}
             onGenerate={(result) => {
               setDetail(result)
-              setLastGeneratedId(result.id)
+              setLastGenerated(result)
             }} />
         )}
 
         <Grid size={12}>
-          <RecommendationHistory key={lastGeneratedId} products={products} reviewed={reviewed} onOpen={setDetail} />
+          <RecommendationHistory key={lastGenerated?.id} products={products} reviewed={reviewed} onOpen={setDetail} />
         </Grid>
       </Grid>
 
@@ -249,13 +265,13 @@ function ReplenishmentWorkspace() {
   )
 }
 
-export default function Replenishment() {
+export default function Replenishment({ decisions = false }: { decisions?: boolean }) {
   const { user } = useAuth()
   return (
     <ThemeProvider theme={workspaceTheme}>
       {user?.role === 'admin'
-        ? <ReplenishmentWorkspace />
-        : <Alert severity='error'>Replenishment requires administrator access.</Alert>}
+        ? <ReplenishmentWorkspace key={String(decisions)} decisions={decisions} />
+        : <Alert severity='error'>Inventory decisions require administrator access.</Alert>}
     </ThemeProvider>
   )
 }

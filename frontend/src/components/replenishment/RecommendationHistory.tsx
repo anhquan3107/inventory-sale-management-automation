@@ -87,11 +87,11 @@ export default function RecommendationHistory({ products, reviewed, onOpen }: Pr
                     <TableRow key={item.id} hover>
                       <TableCell component='th' scope='row'>{product?.name ?? `Product #${item.product_id}`}</TableCell>
                       <TableCell>{product?.sku ?? '—'}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{formatDay(item.snapshot.decision_date)}</TableCell>
-                      <TableCell>{item.snapshot.mode === 'live' ? 'Live' : 'Simulation'}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.snapshot.decision_date ? formatDay(item.snapshot.decision_date) : '—'}</TableCell>
+                      <TableCell>{item.snapshot.mode === 'live' ? 'Live' : item.snapshot.mode === 'simulation' ? 'Simulation' : '—'}</TableCell>
                       <TableCell align='right'>
                         {formatQuantity(item.suggested_quantity)} units
-                        {item.snapshot.result.stockout_risk && (
+                        {item.snapshot.result?.stockout_risk && (
                           <Typography variant='body2' sx={{ fontWeight: 600 }}>Stockout risk</Typography>
                         )}
                       </TableCell>

@@ -41,6 +41,7 @@ export const API_PATHS = {
     POLICIES: '/decisions/policies',
     POLICY: (productId: number) => `/decisions/policies/${productId}`,
     GENERATE: '/decisions/generate',
+    EXCEPTIONS: '/decisions/exceptions',
     RECOMMENDATIONS: '/decisions/recommendations',
     RECOMMENDATION: (id: number) => `/decisions/recommendations/${id}`,
   },

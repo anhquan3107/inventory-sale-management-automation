@@ -10,6 +10,7 @@ from models.inventory import Inventory
 from models.product import Product
 from models.replenishment import InventoryRecommendation, RecommendationDecision, ReplenishmentPolicy
 from services.forecast_engine import resolve_run
+from services.recommendation_diagnostics import DIAGNOSTICS_RULES_VERSION, diagnose_recommendation
 
 
 def calculate_replenishment(forecasts: list[Decimal], on_hand: int, receipts: list[dict], policy: dict) -> dict:
@@ -67,8 +68,37 @@ def put_policy(db: Session, product_id: int, values: dict):
     return policy_dict(row)
 
 
+def snapshot_diagnostics(snapshot: dict | None) -> dict:
+    unsupported = {"rules_version": DIAGNOSTICS_RULES_VERSION, "status": "unsupported_snapshot"}
+    if not isinstance(snapshot, dict):
+        return unsupported
+    saved = snapshot.get("diagnostics")
+    if (isinstance(saved, dict) and saved.get("rules_version") == DIAGNOSTICS_RULES_VERSION
+            and saved.get("status") == "available" and "excess_stock_threshold" in saved):
+        return saved
+    try:
+        policy = snapshot["policy"]
+        forecasts = snapshot["forecast"]
+        periods = [date.fromisoformat(point["period_start"]) for point in forecasts]
+        quantities = [Decimal(point["quantity"]) for point in forecasts]
+        decision_date = date.fromisoformat(snapshot["decision_date"])
+        if any(period != decision_date + timedelta(weeks=index) for index, period in enumerate(periods)):
+            raise ValueError("Non-contiguous snapshot periods")
+        if any(not quantity.is_finite() or quantity < 0 for quantity in quantities):
+            raise ValueError("Invalid snapshot demand")
+        if policy["lead_time_weeks"] < 1 or policy["review_interval_weeks"] < 1:
+            raise ValueError("Invalid snapshot policy")
+        result = calculate_replenishment(quantities, snapshot["on_hand"],
+                                         snapshot["request"]["simulated_receipts"], policy)
+        return diagnose_recommendation(result, periods, policy["lead_time_weeks"])
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return unsupported
+
+
 def serialize_recommendation(row, decision=None):
     result = {c.name: getattr(row, c.name) for c in InventoryRecommendation.__table__.columns}
+    snapshot = row.snapshot if isinstance(row.snapshot, dict) else {}
+    result["snapshot"] = {**snapshot, "diagnostics": snapshot_diagnostics(snapshot)}
     result["decision"] = ({c.name: getattr(decision, c.name) for c in RecommendationDecision.__table__.columns}
                           if decision else None)
     return result
@@ -82,7 +112,7 @@ def generate_recommendation(db: Session, payload: dict, user_id: int):
     existing = db.scalar(select(InventoryRecommendation).where(
         InventoryRecommendation.request_key == payload["request_key"]))
     if existing:
-        if existing.snapshot["request"] != payload:
+        if not isinstance(existing.snapshot, dict) or existing.snapshot.get("request") != payload:
             raise ValueError("request_key already belongs to different inputs")
         decision = db.scalar(select(RecommendationDecision).where(
             RecommendationDecision.recommendation_id == existing.id))
@@ -101,7 +131,6 @@ def generate_recommendation(db: Session, payload: dict, user_id: int):
         ForecastAccuracy.granularity == "weekly"))
     if accuracy is None or not accuracy.details or accuracy.details.get("status") != "evaluated":
         raise ValueError("An evaluated weekly forecast is required; insufficient/unknown history cannot drive orders")
-    inventory = None
     if payload["mode"] == "live":
         if run.as_of_date != date.today():
             raise ValueError("Live decisions require a forecast for today's Monday review")
@@ -116,9 +145,7 @@ def generate_recommendation(db: Session, payload: dict, user_id: int):
     forecasts = list(db.scalars(select(ForecastPrediction).where(
         ForecastPrediction.run_ref_id == run.id, ForecastPrediction.product_id == product.id,
         ForecastPrediction.granularity == "weekly").order_by(ForecastPrediction.horizon_step)))
-    for idx, row in enumerate(forecasts):
-        if row.period_start != run.as_of_date + timedelta(weeks=idx):
-            raise ValueError("Forecast periods are not contiguous with the decision date")
+    validate_forecast_periods(forecasts, run.as_of_date)
     values = policy_dict(policy)
     result = calculate_replenishment([row.predicted_quantity for row in forecasts], on_hand,
                                       payload["simulated_receipts"], values)
@@ -129,6 +156,8 @@ def generate_recommendation(db: Session, payload: dict, user_id: int):
                              for f in forecasts],
                 "model": accuracy.selected_model, "dataset_version": accuracy.details.get("dataset_version"),
                 "result": result, "policy_type": "weekly_periodic_review_v1",
+                "diagnostics": diagnose_recommendation(result, [f.period_start for f in forecasts],
+                                                       policy.lead_time_weeks),
                 "warning": "Advisory only. No purchase order or stock mutation. Receipt timing is weekly."}
     row = InventoryRecommendation(request_key=payload["request_key"], run_ref_id=run.id,
                                   product_id=product.id, snapshot=snapshot,
@@ -138,6 +167,12 @@ def generate_recommendation(db: Session, payload: dict, user_id: int):
     db.commit()
     db.refresh(row)
     return serialize_recommendation(row)
+
+
+def validate_forecast_periods(forecasts: list[ForecastPrediction], decision_date: date) -> None:
+    for index, forecast in enumerate(forecasts):
+        if forecast.horizon_step != index + 1 or forecast.period_start != decision_date + timedelta(weeks=index):
+            raise ValueError("Forecast periods are not contiguous with the decision date")
 
 
 def review_recommendation(db: Session, recommendation_id: int, values: dict, user_id: int):
@@ -154,17 +189,23 @@ def review_recommendation(db: Session, recommendation_id: int, values: dict, use
             raise ValueError("Product is no longer active")
         policy = db.scalar(select(ReplenishmentPolicy).where(
             ReplenishmentPolicy.product_id == row.product_id).with_for_update())
-        if policy is None or policy_dict(policy) != row.snapshot["policy"]:
+        if snapshot_diagnostics(row.snapshot)["status"] != "available":
+            raise ValueError("Historical recommendation has incomplete evidence; generate a new recommendation")
+        if policy is None or policy_dict(policy) != row.snapshot.get("policy"):
             raise ValueError("Policy changed; generate a new recommendation")
-        if row.snapshot["mode"] == "live":
+        mode = row.snapshot.get("mode") or row.snapshot.get("request", {}).get("mode")
+        if mode not in {"simulation", "live"}:
+            raise ValueError("Historical recommendation has no inventory mode; generate a new recommendation")
+        if mode == "live":
             stock = db.scalar(select(Inventory).where(Inventory.product_id == row.product_id).with_for_update())
-            if (row.snapshot["decision_date"] != date.today().isoformat() or stock is None
-                    or stock.quantity_on_hand != row.snapshot["on_hand"]):
+            if (row.snapshot.get("decision_date") != date.today().isoformat() or stock is None
+                    or stock.quantity_on_hand != row.snapshot.get("on_hand")):
                 raise ValueError("Inventory snapshot is stale; generate a new recommendation")
     quantity = 0 if action == "rejected" else (values["quantity"] if action == "modified" else row.suggested_quantity)
-    policy = row.snapshot["policy"]
-    if quantity and (quantity < policy["minimum_order_quantity"] or quantity % policy["pack_size"]):
-        raise ValueError("Reviewed quantity must respect MOQ and pack size")
+    if quantity:
+        policy = row.snapshot["policy"]
+        if quantity < policy["minimum_order_quantity"] or quantity % policy["pack_size"]:
+            raise ValueError("Reviewed quantity must respect MOQ and pack size")
     decision = RecommendationDecision(recommendation_id=row.id, action=action, quantity=quantity,
                                       reason=values.get("reason"), user_id=user_id)
     db.add(decision)

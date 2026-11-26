@@ -33,7 +33,10 @@ export function lastMonday(day: string) {
 }
 
 export const isMonday = (day: string) => dateAtUtc(day).getUTCDay() === 1
-export const formatDay = (day: string) => dayFormatter.format(dateAtUtc(day))
+export function formatDay(day: string) {
+  const date = dateAtUtc(day)
+  return Number.isNaN(date.getTime()) ? '—' : dayFormatter.format(date)
+}
 export const formatTimestamp = (value: string) => timestampFormatter.format(new Date(value))
 export const formatQuantity = (value: number | string) => numberFormatter.format(Number(value))
 export const modelLabel = (model: string) => models[model] ?? model.replaceAll('_', ' ')
@@ -62,7 +65,8 @@ export function forecastIssue(forecast: WeeklyForecast, protectionWeeks?: number
   if (!forecast.predictions.length || (protectionWeeks && forecast.predictions.length < protectionWeeks)) {
     return 'The forecast is shorter than the saved policy’s protection period. Generate a new forecast.'
   }
-  if (forecast.predictions.some((point, index) => point.period_start !== addDays(date, index * 7))) {
+  if (forecast.predictions.some((point, index) => point.horizon_step !== index + 1
+    || point.period_start !== addDays(date, index * 7))) {
     return 'The weekly forecast must start on the review date and contain consecutive weeks.'
   }
   return ''
