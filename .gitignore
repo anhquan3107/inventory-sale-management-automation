@@ -73,3 +73,5 @@ tmp/
 temp/
 
 .github/*
+
+/docs/
