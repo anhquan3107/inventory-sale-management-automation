@@ -27,6 +27,7 @@ __pycache__/
 .mypy_cache/
 .pytest_cache/
 .coverage
+*.md
 htmlcov/
 
 # Virtual environments
@@ -73,3 +74,9 @@ tmp/
 temp/
 
 .github/*
+
+node_modules/
+
+# Ignore the extra npm install at the repository root.
+/package.json
+/package-lock.json
