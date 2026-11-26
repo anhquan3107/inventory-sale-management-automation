@@ -18,19 +18,21 @@ interface Props {
 export default function RecommendationDetail({ recommendation, productLabel, onUpdate, onClose }: Props) {
   const { snapshot, decision, status } = recommendation
   const { policy, result, diagnostics } = snapshot
-  const receipts = snapshot.request?.simulated_receipts ?? []
-  const receiptTotal = receipts.reduce((total, item) => total + item.quantity, 0)
+  const rejectOnly = diagnostics?.status === 'unsupported_snapshot'
+    || !policy || !result || !snapshot.request || !Array.isArray(snapshot.forecast)
+    || !Array.isArray(result.projected_week_end_stock) || !snapshot.decision_date
   const [action, setAction] = useState<DecisionAction>('approved')
   const [quantity, setQuantity] = useState(String(recommendation.suggested_quantity))
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const reviewAction = rejectOnly ? 'rejected' : action
 
   async function review(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy || status !== 'pending') return
     const revisedQuantity = Number(quantity)
-    if (action === 'modified') {
+    if (reviewAction === 'modified') {
       if (!integerInRange(quantity, 0) || !reason.trim()) {
         setError('Enter a whole quantity and a reason for the modification.')
         return
@@ -46,8 +48,8 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
     setError('')
     try {
       onUpdate(await replenishmentApi.review(recommendation.id, {
-        action,
-        ...(action === 'modified' && { quantity: revisedQuantity }),
+        action: reviewAction,
+        ...(reviewAction === 'modified' && { quantity: revisedQuantity }),
         ...(reason.trim() && { reason: reason.trim() }),
       }))
     } catch (error) {
@@ -74,21 +76,76 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
     </Stack>
   )
 
-  if (!policy || !result || !snapshot.request || !Array.isArray(snapshot.forecast)
-    || !Array.isArray(result.projected_week_end_stock) || !snapshot.decision_date) {
+  const reasonField = (
+    <TextField
+      label={reviewAction === 'modified' ? 'Reason' : 'Reason (optional)'}
+      multiline
+      minRows={2}
+      value={reason}
+      disabled={busy}
+      required={reviewAction === 'modified'}
+      onChange={(event) => {
+        setReason(event.target.value)
+        setError('')
+      }}
+      slotProps={{ htmlInput: { maxLength: 2000 } }}
+    />
+  )
+
+  const dialogActions = (
+    <DialogActions>
+      <Button onClick={onClose} disabled={busy}>Close</Button>
+      {status === 'pending' && (
+        <Button
+          type='submit'
+          form='recommendation-review-form'
+          variant='contained'
+          loading={busy}
+        >
+          {rejectOnly ? 'Reject recommendation' : 'Record decision'}
+        </Button>
+      )}
+    </DialogActions>
+  )
+
+  if (rejectOnly) {
     return (
-      <Dialog open onClose={onClose} fullWidth maxWidth='sm' aria-labelledby='recommendation-title'>
+      <Dialog
+        open
+        onClose={busy ? undefined : onClose}
+        fullWidth
+        maxWidth='sm'
+        aria-labelledby='recommendation-title'
+      >
         <DialogTitle id='recommendation-title'>Recommendation #{recommendation.id}</DialogTitle>
         <DialogContent dividers>
           <Stack spacing={2}>
+            <Typography variant='body1' sx={{ overflowWrap: 'anywhere' }}>{productLabel}</Typography>
             <Alert severity='warning'>This historical snapshot has incomplete evidence.</Alert>
-            {history}
+            {status === 'pending' ? (
+              <Stack id='recommendation-review-form' component='form' onSubmit={review}>
+                {reasonField}
+              </Stack>
+            ) : history}
+            {error && <Alert severity='error'>{error}</Alert>}
           </Stack>
         </DialogContent>
-        <DialogActions><Button onClick={onClose}>Close</Button></DialogActions>
+        {dialogActions}
       </Dialog>
     )
   }
+
+  const receipts = Array.isArray(snapshot.request.simulated_receipts) ? snapshot.request.simulated_receipts : []
+  let receiptTotal = 0
+  const receiptsByWeek = new Map<number, number>()
+  for (const { arrival_week, quantity } of receipts) {
+    receiptTotal += quantity
+    receiptsByWeek.set(arrival_week, (receiptsByWeek.get(arrival_week) ?? 0) + quantity)
+  }
+  const receiptsAfterProtection = [...receiptsByWeek]
+    .filter(([week]) => week > result.protection_weeks)
+    .sort(([first], [second]) => first - second)
+  const zeroOrderWithShortage = recommendation.suggested_quantity === 0 && result.stockout_risk
 
   const policyFacts = [
     ['Lead time', weekLabel(policy.lead_time_weeks)],
@@ -125,7 +182,7 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                 <Typography variant='body2' color='text.secondary'>Suggested order</Typography>
                 <Typography variant='h6'>{formatQuantity(recommendation.suggested_quantity)} units</Typography>
                 <Typography variant='body2' color='text.secondary'>
-                  {recommendation.action === 'reorder' ? 'Reorder' : 'No order needed'}
+                  {recommendation.action === 'reorder' ? 'Reorder' : 'No additional order suggested'}
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
@@ -179,6 +236,11 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
             ) : (
               <Alert severity='warning' sx={{ mb: 1.5 }}>Shortage diagnostics are unavailable for this snapshot.</Alert>
             )}
+            {zeroOrderWithShortage && (
+              <Typography variant='body2' sx={{ mb: 1.5 }}>
+                Inventory position meets the target. Review when incoming stock arrives to address the projected shortage.
+              </Typography>
+            )}
             <TableContainer>
               <Table size='small'>
                 <TableHead>
@@ -193,7 +255,7 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                   {result.projected_week_end_stock.map((value, index) => {
                     const week = snapshot.forecast[index]
                     if (!week) return null
-                    const incoming = receipts.reduce((total, item) => item.arrival_week === index + 1 ? total + item.quantity : total, 0)
+                    const incoming = receiptsByWeek.get(index + 1) ?? 0
                     return (
                       <TableRow key={week.period_start} hover>
                         <TableCell component='th' scope='row' sx={{ whiteSpace: 'nowrap' }}>
@@ -213,6 +275,17 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                 </TableBody>
               </Table>
             </TableContainer>
+            {receiptsAfterProtection.length > 0 && (
+              <Alert severity='info' sx={{ mt: 1.5 }}>
+                <Typography variant='body2' fontWeight={600}>Receipts after the protection period</Typography>
+                <Typography variant='body2'>These receipts count toward inventory position and arrive after the weeks shown above.</Typography>
+                <Box component='ul' sx={{ my: 0.5, pl: 2 }}>
+                  {receiptsAfterProtection.map(([week, units]) => (
+                    <li key={week}>Week {week} · {formatQuantity(units)} units</li>
+                  ))}
+                </Box>
+              </Alert>
+            )}
           </Box>
 
           {diagnostics?.status === 'available' && diagnostics.excess_stock_review
@@ -303,38 +376,14 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                     </Grid>
                   )}
                 </Grid>
-                <TextField
-                  label={action === 'modified' ? 'Reason' : 'Reason (optional)'}
-                  multiline
-                  minRows={2}
-                  value={reason}
-                  disabled={busy}
-                  required={action === 'modified'}
-                  onChange={(event) => {
-                    setReason(event.target.value)
-                    setError('')
-                  }}
-                  slotProps={{ htmlInput: { maxLength: 2000 } }}
-                />
+                {reasonField}
               </Stack>
             ) : history}
             {error && <Alert severity='error' sx={{ mt: 2 }}>{error}</Alert>}
           </Box>
         </Stack>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={busy}>Close</Button>
-        {status === 'pending' && (
-          <Button
-            type='submit'
-            form='recommendation-review-form'
-            variant='contained'
-            loading={busy}
-          >
-            Record decision
-          </Button>
-        )}
-      </DialogActions>
+      {dialogActions}
     </Dialog>
   )
 }
