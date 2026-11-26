@@ -33,14 +33,35 @@ export default function SavedForecastForm({ productId, protectionWeeks, forecast
   }
 
   return (
-    <Paper component='section' elevation={0} aria-labelledby='saved-forecast-heading' sx={{ p: 3, borderRadius: 3 }}>
+    <Paper
+      component='section'
+      elevation={0}
+      aria-labelledby='saved-forecast-heading'
+      sx={{ p: 3, borderRadius: 3 }}
+    >
       <Typography id='saved-forecast-heading' variant='h6' component='h2' sx={{ mb: 2 }}>
         Saved weekly forecast
       </Typography>
       <Stack component='form' onSubmit={load} spacing={1.5}>
-        <TextField label='Forecast run ID for this SKU' size='small' required value={runId} disabled={busy}
-          onChange={(event) => { setRunId(event.target.value); setError(''); onForecast(null) }} />
-        <Button type='submit' variant='outlined' loading={busy} disabled={!runId.trim()} sx={{ alignSelf: 'flex-start' }}>
+        <TextField
+          label='Forecast run ID for this SKU'
+          size='small'
+          required
+          value={runId}
+          disabled={busy}
+          onChange={(event) => {
+            setRunId(event.target.value)
+            setError('')
+            onForecast(null)
+          }}
+        />
+        <Button
+          type='submit'
+          variant='outlined'
+          loading={busy}
+          disabled={!runId.trim()}
+          sx={{ alignSelf: 'flex-start' }}
+        >
           Load forecast
         </Button>
         {error && <Alert severity='error'>{error}</Alert>}

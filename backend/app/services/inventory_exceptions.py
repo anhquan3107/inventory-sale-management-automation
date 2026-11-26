@@ -35,9 +35,15 @@ EVIDENCE_REASONS = {
 }
 
 
-def list_exceptions(db: Session, run: ForecastRun, mode: ExceptionMode, limit: int, offset: int,
-                    classification: ExceptionClassification | None, review_status: ReviewStatus | None
-                    ) -> InventoryExceptionPage:
+def list_exceptions(
+    db: Session,
+    run: ForecastRun,
+    mode: ExceptionMode,
+    limit: int,
+    offset: int,
+    classification: ExceptionClassification | None,
+    review_status: ReviewStatus | None,
+) -> InventoryExceptionPage:
     accuracy = {row.product_id: row for row in db.scalars(select(ForecastAccuracy).where(
         ForecastAccuracy.run_ref_id == run.id, ForecastAccuracy.granularity == "weekly"))}
     settings = run.settings or {}
@@ -79,9 +85,14 @@ def list_exceptions(db: Session, run: ForecastRun, mode: ExceptionMode, limit: i
                                   items=matching[offset:offset + limit])
 
 
-def classify_exception(product: Product, recommendation: InventoryRecommendation | None, run: ForecastRun,
-                       accuracy: ForecastAccuracy | None, predictions: list[ForecastPrediction],
-                       policy: ReplenishmentPolicy | None) -> InventoryException:
+def classify_exception(
+    product: Product,
+    recommendation: InventoryRecommendation | None,
+    run: ForecastRun,
+    accuracy: ForecastAccuracy | None,
+    predictions: list[ForecastPrediction],
+    policy: ReplenishmentPolicy | None,
+) -> InventoryException:
     reasons = [] if product.is_active else ["This product is inactive."]
     item = InventoryException(product_id=product.id, sku=product.sku, product_name=product.name,
                               product_active=product.is_active,

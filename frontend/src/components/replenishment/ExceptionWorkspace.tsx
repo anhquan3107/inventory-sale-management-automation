@@ -92,25 +92,48 @@ export default function ExceptionWorkspace({ initialScope, refreshKey, onOpen }:
   }
 
   return (
-    <Paper component='section' elevation={0} aria-labelledby='exceptions-heading' sx={{ p: 3, borderRadius: 3 }}>
+    <Paper
+      component='section'
+      elevation={0}
+      aria-labelledby='exceptions-heading'
+      sx={{ p: 3, borderRadius: 3 }}
+    >
       <Stack spacing={2}>
         <Typography id='exceptions-heading' variant='h6' component='h2'>Inventory exceptions</Typography>
         <Box component='form' onSubmit={applyFilters}>
           <Grid container spacing={1.5}>
             <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-              <TextField label='Forecast run ID' size='small' value={scope.run_id} required fullWidth
-                onChange={(event) => setScope({ ...scope, run_id: event.target.value })} />
+              <TextField
+                label='Forecast run ID'
+                size='small'
+                value={scope.run_id}
+                required
+                fullWidth
+                onChange={(event) => setScope({ ...scope, run_id: event.target.value })}
+              />
             </Grid>
             <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-              <TextField select label='Exception mode' size='small' value={scope.mode} fullWidth
-                onChange={(event) => setScope({ ...scope, mode: event.target.value as RecommendationMode })}>
+              <TextField
+                select
+                label='Exception mode'
+                size='small'
+                value={scope.mode}
+                fullWidth
+                onChange={(event) => setScope({ ...scope, mode: event.target.value as RecommendationMode })}
+              >
                 <MenuItem value='simulation'>Simulation</MenuItem>
                 <MenuItem value='live'>Live inventory</MenuItem>
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-              <TextField select label='Classification' size='small' value={classification} fullWidth
-                onChange={(event) => setClassification(event.target.value as ExceptionClassification | '')}>
+              <TextField
+                select
+                label='Classification'
+                size='small'
+                value={classification}
+                fullWidth
+                onChange={(event) => setClassification(event.target.value as ExceptionClassification | '')}
+              >
                 <MenuItem value=''>All classifications</MenuItem>
                 {Object.entries(classificationLabels).map(([value, label]) => (
                   <MenuItem key={value} value={value}>{label}</MenuItem>
@@ -118,8 +141,14 @@ export default function ExceptionWorkspace({ initialScope, refreshKey, onOpen }:
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, lg: 2 }}>
-              <TextField select label='Review status' size='small' value={reviewStatus} fullWidth
-                onChange={(event) => setReviewStatus(event.target.value as ReviewStatus | '')}>
+              <TextField
+                select
+                label='Review status'
+                size='small'
+                value={reviewStatus}
+                fullWidth
+                onChange={(event) => setReviewStatus(event.target.value as ReviewStatus | '')}
+              >
                 <MenuItem value=''>All review statuses</MenuItem>
                 {Object.entries(reviewLabels).map(([value, label]) => (
                   <MenuItem key={value} value={value}>{label}</MenuItem>
@@ -127,27 +156,46 @@ export default function ExceptionWorkspace({ initialScope, refreshKey, onOpen }:
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, lg: 2 }}>
-              <Button type='submit' variant='outlined' disabled={!scope.run_id.trim()} fullWidth sx={{ height: 40 }}>
+              <Button
+                type='submit'
+                variant='outlined'
+                disabled={!scope.run_id.trim()}
+                fullWidth
+                sx={{ height: 40 }}
+              >
                 Load exceptions
               </Button>
             </Grid>
           </Grid>
         </Box>
 
-        {!query && <Typography variant='body2' color='text.secondary'>Enter a saved forecast run ID to see its products.</Typography>}
+        {!query && (
+          <Typography variant='body2' color='text.secondary'>
+            Enter a saved forecast run ID to see its products.
+          </Typography>
+        )}
         {query && !ready && <CircularProgress size={24} aria-label='Loading inventory exceptions' />}
         {ready && result.error && <Alert severity='error'>{result.error}</Alert>}
         {detailError && <Alert severity='error'>{detailError}</Alert>}
         {query && page && (
           <>
-            <Typography variant='body2' color='text.secondary' role='status' sx={{ overflowWrap: 'anywhere' }}>
+            <Typography
+              variant='body2'
+              color='text.secondary'
+              role='status'
+              sx={{ overflowWrap: 'anywhere' }}
+            >
               {page.as_of_date ? `Review date ${formatDay(page.as_of_date)}` : 'Review date unavailable'}
               {' · '}{page.mode === 'live' ? 'Live inventory' : 'Simulation'}
               {' · '}{page.scope_total} SKUs · {page.missing_recommendations} without a recommendation
               {' · '}{page.run_id}
             </Typography>
             {page.total === 0 ? (
-              <Alert severity='info'>{page.scope_total ? 'No products match these filters.' : 'No products were identified for this forecast run.'}</Alert>
+              <Alert severity='info'>
+                {page.scope_total
+                  ? 'No products match these filters.'
+                  : 'No products were identified for this forecast run.'}
+              </Alert>
             ) : (
               <>
                 <TableContainer tabIndex={0} role='region' aria-label='Inventory exception results'>
@@ -172,7 +220,9 @@ export default function ExceptionWorkspace({ initialScope, refreshKey, onOpen }:
                           <TableCell>
                             <Typography variant='body2' fontWeight={600}>{classificationLabels[item.classification]}</Typography>
                             {item.reasons.map((reason) => (
-                              <Typography key={reason} variant='body2' color='text.secondary'>{reason}</Typography>
+                              <Typography key={reason} variant='body2' color='text.secondary'>
+                                {reason}
+                              </Typography>
                             ))}
                           </TableCell>
                           <TableCell sx={{ whiteSpace: 'nowrap' }}>
@@ -189,9 +239,15 @@ export default function ExceptionWorkspace({ initialScope, refreshKey, onOpen }:
                           </TableCell>
                           <TableCell align='right'>
                             {item.recommendation_id !== null && (
-                              <Button size='small' loading={openingId === item.recommendation_id} disabled={openingId !== null}
+                              <Button
+                                size='small'
+                                loading={openingId === item.recommendation_id}
+                                disabled={openingId !== null}
                                 aria-label={`View recommendation for ${item.sku}`}
-                                onClick={() => { if (item.recommendation_id !== null) void openDetail(item.recommendation_id) }}>
+                                onClick={() => {
+                                  if (item.recommendation_id !== null) void openDetail(item.recommendation_id)
+                                }}
+                              >
                                 View
                               </Button>
                             )}
@@ -199,14 +255,23 @@ export default function ExceptionWorkspace({ initialScope, refreshKey, onOpen }:
                         </TableRow>
                       ))}
                       {page.items.length === 0 && (
-                        <TableRow><TableCell colSpan={6}>No results on this page. Load exceptions to return to page 1.</TableCell></TableRow>
+                        <TableRow>
+                          <TableCell colSpan={6}>
+                            No results on this page. Load exceptions to return to page 1.
+                          </TableCell>
+                        </TableRow>
                       )}
                     </TableBody>
                   </Table>
                 </TableContainer>
-                <TablePagination component='div' count={page.total} rowsPerPage={pageSize} rowsPerPageOptions={[]}
+                <TablePagination
+                  component='div'
+                  count={page.total}
+                  rowsPerPage={pageSize}
+                  rowsPerPageOptions={[]}
                   page={Math.min(Math.floor(query.offset / pageSize), Math.ceil(page.total / pageSize) - 1)}
-                  onPageChange={(_, next) => setQuery({ ...query, offset: next * pageSize })} />
+                  onPageChange={(_, next) => setQuery({ ...query, offset: next * pageSize })}
+                />
               </>
             )}
           </>

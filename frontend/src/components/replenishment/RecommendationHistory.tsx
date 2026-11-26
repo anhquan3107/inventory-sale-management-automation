@@ -45,18 +45,50 @@ export default function RecommendationHistory({ products, reviewed, onOpen }: Pr
   }, [key, offset])
 
   return (
-    <Paper component='section' elevation={0} aria-labelledby='history-heading' sx={{ p: 3, borderRadius: 3 }}>
-      <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1} sx={{ mb: 2 }}>
+    <Paper
+      component='section'
+      elevation={0}
+      aria-labelledby='history-heading'
+      sx={{ p: 3, borderRadius: 3 }}
+    >
+      <Stack
+        direction='row'
+        justifyContent='space-between'
+        alignItems='center'
+        useFlexGap
+        flexWrap='wrap'
+        spacing={1}
+        sx={{ mb: 2 }}
+      >
         <Typography id='history-heading' variant='h6' component='h2'>Recommendation history</Typography>
-        <Button variant='outlined' disabled={!ready} onClick={() => setAttempt((count) => count + 1)}>Refresh</Button>
+        <Button
+          variant='outlined'
+          disabled={!ready}
+          onClick={() => setAttempt((count) => count + 1)}
+        >
+          Refresh
+        </Button>
       </Stack>
 
       {!ready ? (
-        <Stack direction='row' justifyContent='center' sx={{ py: 4 }} role='status' aria-label='Loading recommendations'>
+        <Stack
+          direction='row'
+          justifyContent='center'
+          sx={{ py: 4 }}
+          role='status'
+          aria-label='Loading recommendations'
+        >
           <CircularProgress size={24} />
         </Stack>
       ) : error ? (
-        <Alert severity='error' action={<Button color='inherit' onClick={() => setAttempt((count) => count + 1)}>Retry</Button>}>
+        <Alert
+          severity='error'
+          action={
+            <Button color='inherit' onClick={() => setAttempt((count) => count + 1)}>
+              Retry
+            </Button>
+          }
+        >
           {error}
         </Alert>
       ) : (
@@ -87,8 +119,12 @@ export default function RecommendationHistory({ products, reviewed, onOpen }: Pr
                     <TableRow key={item.id} hover>
                       <TableCell component='th' scope='row'>{product?.name ?? `Product #${item.product_id}`}</TableCell>
                       <TableCell>{product?.sku ?? '—'}</TableCell>
-                      <TableCell sx={{ whiteSpace: 'nowrap' }}>{item.snapshot.decision_date ? formatDay(item.snapshot.decision_date) : '—'}</TableCell>
-                      <TableCell>{item.snapshot.mode === 'live' ? 'Live' : item.snapshot.mode === 'simulation' ? 'Simulation' : '—'}</TableCell>
+                      <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                        {item.snapshot.decision_date ? formatDay(item.snapshot.decision_date) : '—'}
+                      </TableCell>
+                      <TableCell>
+                        {item.snapshot.mode === 'live' ? 'Live' : item.snapshot.mode === 'simulation' ? 'Simulation' : '—'}
+                      </TableCell>
                       <TableCell align='right'>
                         {formatQuantity(item.suggested_quantity)} units
                         {item.snapshot.result?.stockout_risk && (
@@ -96,11 +132,19 @@ export default function RecommendationHistory({ products, reviewed, onOpen }: Pr
                         )}
                       </TableCell>
                       <TableCell>
-                        <Chip label={item.status} size='small' variant={item.status === 'pending' ? 'outlined' : 'filled'}
-                          sx={{ textTransform: 'capitalize' }} />
+                        <Chip
+                          label={item.status}
+                          size='small'
+                          variant={item.status === 'pending' ? 'outlined' : 'filled'}
+                          sx={{ textTransform: 'capitalize' }}
+                        />
                       </TableCell>
                       <TableCell align='right'>
-                        <Button size='small' onClick={() => onOpen(item)} aria-label={`View recommendation ${item.id}`}>
+                        <Button
+                          size='small'
+                          onClick={() => onOpen(item)}
+                          aria-label={`View recommendation ${item.id}`}
+                        >
                           View
                         </Button>
                       </TableCell>
@@ -111,7 +155,13 @@ export default function RecommendationHistory({ products, reviewed, onOpen }: Pr
             </Table>
           </TableContainer>
           {(hasNext || offset > 0) && (
-            <Stack direction='row' alignItems='center' justifyContent='flex-end' spacing={1} sx={{ mt: 2 }}>
+            <Stack
+              direction='row'
+              alignItems='center'
+              justifyContent='flex-end'
+              spacing={1}
+              sx={{ mt: 2 }}
+            >
               <Typography variant='body2' color='text.secondary' sx={{ flexGrow: 1 }}>
                 {items.length ? `Showing ${offset + 1}–${offset + items.length}` : 'No results'}
               </Typography>

@@ -87,8 +87,21 @@ function Planning({ decisions, products, policies, coverage, onSavePolicy, onSav
   return (
     <>
       <Grid size={{ xs: 12, lg: 6 }}>
-        <Paper component='section' elevation={0} aria-labelledby='policy-heading' sx={{ p: 3, borderRadius: 3 }}>
-          <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1} sx={{ mb: 2 }}>
+        <Paper
+          component='section'
+          elevation={0}
+          aria-labelledby='policy-heading'
+          sx={{ p: 3, borderRadius: 3 }}
+        >
+          <Stack
+            direction='row'
+            justifyContent='space-between'
+            alignItems='center'
+            useFlexGap
+            flexWrap='wrap'
+            spacing={1}
+            sx={{ mb: 2 }}
+          >
             <Typography id='policy-heading' variant='h6' component='h2'>Replenishment policy</Typography>
             <Chip size='small' label={policy ? `Version ${policy.version}` : 'Setup required'} />
           </Stack>
@@ -122,26 +135,49 @@ function Planning({ decisions, products, policies, coverage, onSavePolicy, onSav
               fullWidth
               renderInput={(params) => <TextField {...params} label='Planning product' helperText={product.sku} />}
             />
-            <PolicyForm key={product.id} productId={product.id} policy={policy}
-              onSave={onSavePolicy} onDirtyChange={(policyDirty) => updateSelection({ policyDirty })} />
+            <PolicyForm
+              key={product.id}
+              productId={product.id}
+              policy={policy}
+              onSave={onSavePolicy}
+              onDirtyChange={(policyDirty) => updateSelection({ policyDirty })}
+            />
           </Stack>
         </Paper>
       </Grid>
 
       <Grid size={{ xs: 12, lg: 6 }}>
         {decisions ? (
-          <SavedForecastForm key={product.id} productId={product.id} protectionWeeks={protectionWeeks}
-            forecast={forecast} onForecast={(forecast) => updateSelection({ forecast })} />
+          <SavedForecastForm
+            key={product.id}
+            productId={product.id}
+            protectionWeeks={protectionWeeks}
+            forecast={forecast}
+            onForecast={(forecast) => updateSelection({ forecast })}
+          />
         ) : (
-          <ForecastForm key={product.id} productId={product.id} protectionWeeks={protectionWeeks}
-            policyDirty={policyDirty} coverage={productCoverage} forecast={forecast}
-            onCoverage={onSaveCoverage} onForecast={(forecast) => updateSelection({ forecast })} />
+          <ForecastForm
+            key={product.id}
+            productId={product.id}
+            protectionWeeks={protectionWeeks}
+            policyDirty={policyDirty}
+            coverage={productCoverage}
+            forecast={forecast}
+            onCoverage={onSaveCoverage}
+            onForecast={(forecast) => updateSelection({ forecast })}
+          />
         )}
       </Grid>
 
       <Grid size={12}>
-        <ScenarioForm key={product.id} productId={product.id} policy={policy}
-          policyDirty={policyDirty} forecast={forecast} onGenerate={onGenerate} />
+        <ScenarioForm
+          key={product.id}
+          productId={product.id}
+          policy={policy}
+          policyDirty={policyDirty}
+          forecast={forecast}
+          onGenerate={onGenerate}
+        />
       </Grid>
     </>
   )
@@ -198,11 +234,21 @@ function ReplenishmentWorkspace({ decisions }: { decisions: boolean }) {
           background: 'linear-gradient(180deg, #ffffff 0%, #fbfbfb 100%)',
         }}
       >
-        <Stack direction='row' justifyContent='space-between' alignItems='center' useFlexGap flexWrap='wrap' spacing={1}>
+        <Stack
+          direction='row'
+          justifyContent='space-between'
+          alignItems='center'
+          useFlexGap
+          flexWrap='wrap'
+          spacing={1}
+        >
           <Box>
-            <Typography variant='h5' component='h1' sx={{ mb: 0.5 }}>{decisions ? 'Inventory decisions' : 'Replenishment'}</Typography>
+            <Typography variant='h5' component='h1' sx={{ mb: 0.5 }}>
+              {decisions ? 'Inventory decisions' : 'Replenishment'}
+            </Typography>
             <Typography variant='body2' color='text.secondary'>
-              {decisions ? 'Review projected shortages and decide how much to replenish.'
+              {decisions
+                ? 'Review projected shortages and decide how much to replenish.'
                 : 'Plan weekly stock orders using product policies and forecast demand.'}
             </Typography>
           </Box>
@@ -213,15 +259,32 @@ function ReplenishmentWorkspace({ decisions }: { decisions: boolean }) {
       <Grid container spacing={3}>
         {decisions && (
           <Grid size={12}>
-            <ExceptionWorkspace key={generatedScope && `${generatedScope.run_id}:${generatedScope.mode}`}
-              initialScope={generatedScope} refreshKey={`${lastGenerated?.id}:${Object.keys(reviewed).length}`} onOpen={setDetail} />
+            <ExceptionWorkspace
+              key={generatedScope && `${generatedScope.run_id}:${generatedScope.mode}`}
+              initialScope={generatedScope}
+              refreshKey={`${lastGenerated?.id}:${Object.keys(reviewed).length}`}
+              onOpen={setDetail}
+            />
           </Grid>
         )}
         {error ? (
           <Grid size={12}>
-            <Alert severity='error' action={
-              <Button color='inherit' onClick={() => { setError(''); setAttempt((count) => count + 1) }}>Retry</Button>
-            }>{error}</Alert>
+            <Alert
+              severity='error'
+              action={
+                <Button
+                  color='inherit'
+                  onClick={() => {
+                    setError('')
+                    setAttempt((count) => count + 1)
+                  }}
+                >
+                  Retry
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
           </Grid>
         ) : !data || !activeProducts.length ? (
           <Grid size={12}>
@@ -229,23 +292,40 @@ function ReplenishmentWorkspace({ decisions }: { decisions: boolean }) {
               {data ? (
                 <Typography color='text.secondary'>Activate a product to configure its replenishment policy.</Typography>
               ) : (
-                <Stack direction='row' justifyContent='center' sx={{ py: 4 }} role='status' aria-label='Loading replenishment'>
+                <Stack
+                  direction='row'
+                  justifyContent='center'
+                  sx={{ py: 4 }}
+                  role='status'
+                  aria-label='Loading replenishment'
+                >
                   <CircularProgress size={24} />
                 </Stack>
               )}
             </Paper>
           </Grid>
         ) : (
-          <Planning decisions={decisions} products={activeProducts} policies={data.policies} coverage={data.coverage}
-            onSavePolicy={savePolicy} onSaveCoverage={saveCoverage}
+          <Planning
+            decisions={decisions}
+            products={activeProducts}
+            policies={data.policies}
+            coverage={data.coverage}
+            onSavePolicy={savePolicy}
+            onSaveCoverage={saveCoverage}
             onGenerate={(result) => {
               setDetail(result)
               setLastGenerated(result)
-            }} />
+            }}
+          />
         )}
 
         <Grid size={12}>
-          <RecommendationHistory key={lastGenerated?.id} products={products} reviewed={reviewed} onOpen={setDetail} />
+          <RecommendationHistory
+            key={lastGenerated?.id}
+            products={products}
+            reviewed={reviewed}
+            onOpen={setDetail}
+          />
         </Grid>
       </Grid>
 

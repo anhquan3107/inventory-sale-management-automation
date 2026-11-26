@@ -30,8 +30,12 @@ def execute(db, fn, *args):
 
 
 @router.put("/policies/{product_id}")
-def update_policy(product_id: int, payload: PolicyRequest, user_id: int = Depends(require_manager),
-                  db: Session = Depends(get_db)):
+def update_policy(
+    product_id: int,
+    payload: PolicyRequest,
+    user_id: int = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
     return execute(db, put_policy, product_id, payload.model_dump())
 
 
@@ -41,17 +45,25 @@ def policies(user_id: int = Depends(require_manager), db: Session = Depends(get_
 
 
 @router.post("/generate")
-def generate(payload: RecommendationRequest, user_id: int = Depends(require_manager), db: Session = Depends(get_db)):
+def generate(
+    payload: RecommendationRequest,
+    user_id: int = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
     return execute(db, generate_recommendation, payload.model_dump(), user_id)
 
 
 @router.get("/exceptions", response_model=InventoryExceptionPage)
-def exceptions(run_id: str = Query(min_length=1, max_length=36),
-               mode: ExceptionMode = Query(default="simulation"),
-               classification: ExceptionClassification | None = Query(default=None),
-               review_status: ReviewStatus | None = Query(default=None),
-               limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0),
-               user_id: int = Depends(require_manager), db: Session = Depends(get_db)):
+def exceptions(
+    run_id: str = Query(min_length=1, max_length=36),
+    mode: ExceptionMode = Query(default="simulation"),
+    classification: ExceptionClassification | None = Query(default=None),
+    review_status: ReviewStatus | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    user_id: int = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
     if not run_id.strip():
         raise HTTPException(status_code=422, detail="Enter a forecast run ID")
     try:
@@ -62,15 +74,23 @@ def exceptions(run_id: str = Query(min_length=1, max_length=36),
 
 
 @router.get("/recommendations")
-def recommendations(limit: int = Query(default=50, ge=1, le=200), offset: int = Query(default=0, ge=0),
-                    user_id: int = Depends(require_manager), db: Session = Depends(get_db)):
+def recommendations(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    user_id: int = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
     rows = db.scalars(select(InventoryRecommendation).order_by(InventoryRecommendation.id.desc()).limit(limit).offset(offset))
     return [serialize_recommendation(row, db.scalar(select(RecommendationDecision).where(
         RecommendationDecision.recommendation_id == row.id))) for row in rows]
 
 
 @router.get("/recommendations/{recommendation_id}")
-def recommendation(recommendation_id: int, user_id: int = Depends(require_manager), db: Session = Depends(get_db)):
+def recommendation(
+    recommendation_id: int,
+    user_id: int = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
     row = db.get(InventoryRecommendation, recommendation_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Recommendation not found")
@@ -79,6 +99,10 @@ def recommendation(recommendation_id: int, user_id: int = Depends(require_manage
 
 
 @router.patch("/recommendations/{recommendation_id}")
-def review(recommendation_id: int, payload: DecisionRequest, user_id: int = Depends(require_manager),
-           db: Session = Depends(get_db)):
+def review(
+    recommendation_id: int,
+    payload: DecisionRequest,
+    user_id: int = Depends(require_manager),
+    db: Session = Depends(get_db),
+):
     return execute(db, review_recommendation, recommendation_id, payload.model_dump(), user_id)

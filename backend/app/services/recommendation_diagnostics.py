@@ -6,7 +6,11 @@ DIAGNOSTICS_RULES_VERSION = "inventory-exceptions-v1"
 EXCESS_STOCK_FACTOR = Decimal("2")
 
 
-def diagnose_recommendation(result: dict, period_starts: list[date], lead_time_weeks: int) -> dict:
+def diagnose_recommendation(
+    result: dict,
+    period_starts: list[date],
+    lead_time_weeks: int,
+) -> dict:
     balances = [Decimal(value) for value in result["projected_week_end_stock"]]
     shortages = [(index, -balance) for index, balance in enumerate(balances) if balance < 0]
     first_index, first_quantity = shortages[0] if shortages else (None, None)

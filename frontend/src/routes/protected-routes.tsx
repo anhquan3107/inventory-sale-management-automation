@@ -26,7 +26,17 @@ export const protectedRoutes: RouteObject[] = [
           {
             path: '/decisions',
             element: (
-              <Suspense fallback={<Box role='status' aria-label='Loading decisions' sx={{ display: 'grid', placeItems: 'center', py: 6 }}><CircularProgress /></Box>}>
+              <Suspense
+                fallback={
+                  <Box
+                    role='status'
+                    aria-label='Loading decisions'
+                    sx={{ display: 'grid', placeItems: 'center', py: 6 }}
+                  >
+                    <CircularProgress />
+                  </Box>
+                }
+              >
                 <Replenishment decisions />
               </Suspense>
             ),
@@ -34,7 +44,17 @@ export const protectedRoutes: RouteObject[] = [
           {
             path: '/replenishment',
             element: (
-              <Suspense fallback={<Box role='status' aria-label='Loading replenishment' sx={{ display: 'grid', placeItems: 'center', py: 6 }}><CircularProgress /></Box>}>
+              <Suspense
+                fallback={
+                  <Box
+                    role='status'
+                    aria-label='Loading replenishment'
+                    sx={{ display: 'grid', placeItems: 'center', py: 6 }}
+                  >
+                    <CircularProgress />
+                  </Box>
+                }
+              >
                 <Replenishment />
               </Suspense>
             ),

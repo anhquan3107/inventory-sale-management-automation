@@ -65,7 +65,9 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
     <Stack spacing={1} role='status'>
       <Stack direction='row' alignItems='center' useFlexGap flexWrap='wrap' spacing={1}>
         <Chip label={status} size='small' sx={{ textTransform: 'capitalize' }} />
-        <Typography variant='body2'>{formatQuantity(decision.quantity)} units · {formatTimestamp(decision.created_at)}</Typography>
+        <Typography variant='body2'>
+          {formatQuantity(decision.quantity)} units · {formatTimestamp(decision.created_at)}
+        </Typography>
       </Stack>
       <Typography variant='body2' color='text.secondary'>Recorded by user #{decision.user_id}</Typography>
       {decision.reason && <Typography sx={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{decision.reason}</Typography>}
@@ -100,7 +102,13 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
   ]
 
   return (
-    <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth='md' aria-labelledby='recommendation-title'>
+    <Dialog
+      open
+      onClose={busy ? undefined : onClose}
+      fullWidth
+      maxWidth='md'
+      aria-labelledby='recommendation-title'
+    >
       <DialogTitle id='recommendation-title'>Recommendation #{recommendation.id}</DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
@@ -138,7 +146,15 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
           </Paper>
 
           <Box component='section' aria-labelledby='projection-heading'>
-            <Stack direction='row' alignItems='flex-start' justifyContent='space-between' useFlexGap flexWrap='wrap' spacing={1} sx={{ mb: 1.5 }}>
+            <Stack
+              direction='row'
+              alignItems='flex-start'
+              justifyContent='space-between'
+              useFlexGap
+              flexWrap='wrap'
+              spacing={1}
+              sx={{ mb: 1.5 }}
+            >
               <Box>
                 <Typography id='projection-heading' variant='h6' component='h3'>Projected week-end stock</Typography>
                 <Typography variant='body2' color='text.secondary'>
@@ -148,7 +164,10 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
             </Stack>
             {diagnostics?.status === 'available' ? (
               diagnostics.first_shortage_period_start && diagnostics.first_shortage_quantity !== null ? (
-                <Alert severity={diagnostics.shortage_during_lead_time ? 'error' : 'warning'} sx={{ mb: 1.5 }}>
+                <Alert
+                  severity={diagnostics.shortage_during_lead_time ? 'error' : 'warning'}
+                  sx={{ mb: 1.5 }}
+                >
                   Shortage projected in the week beginning {formatDay(diagnostics.first_shortage_period_start)}
                   {' '}({formatQuantity(diagnostics.first_shortage_quantity)} units short).
                   {' '}Maximum projected deficit {formatQuantity(diagnostics.maximum_projected_deficit)} units.
@@ -177,10 +196,17 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                     const incoming = receipts.reduce((total, item) => item.arrival_week === index + 1 ? total + item.quantity : total, 0)
                     return (
                       <TableRow key={week.period_start} hover>
-                        <TableCell component='th' scope='row' sx={{ whiteSpace: 'nowrap' }}>{formatDay(week.period_start)}</TableCell>
+                        <TableCell component='th' scope='row' sx={{ whiteSpace: 'nowrap' }}>
+                          {formatDay(week.period_start)}
+                        </TableCell>
                         <TableCell align='right'>{formatQuantity(week.quantity)}</TableCell>
                         <TableCell align='right'>{formatQuantity(incoming)}</TableCell>
-                        <TableCell align='right' sx={{ fontWeight: Number(value) < 0 ? 700 : undefined }}>{formatQuantity(value)}</TableCell>
+                        <TableCell
+                          align='right'
+                          sx={{ fontWeight: Number(value) < 0 ? 700 : undefined }}
+                        >
+                          {formatQuantity(value)}
+                        </TableCell>
                       </TableRow>
                     )
                   })}
@@ -202,7 +228,11 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
           )}
 
           <Box component='details'>
-            <Typography component='summary' variant='body2' sx={{ fontWeight: 600, cursor: 'pointer' }}>
+            <Typography
+              component='summary'
+              variant='body2'
+              sx={{ fontWeight: 600, cursor: 'pointer' }}
+            >
               Policy and forecast used
             </Typography>
             <TableContainer sx={{ mt: 1 }}>
@@ -219,17 +249,36 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
             </TableContainer>
           </Box>
 
-          <Box component='section' aria-labelledby='review-heading' sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}>
+          <Box
+            component='section'
+            aria-labelledby='review-heading'
+            sx={{ pt: 2, borderTop: 1, borderColor: 'divider' }}
+          >
             <Typography id='review-heading' variant='h6' component='h3' sx={{ mb: 1 }}>Review decision</Typography>
             {status === 'pending' ? (
-              <Stack id='recommendation-review-form' component='form' spacing={1.5} onSubmit={review}>
+              <Stack
+                id='recommendation-review-form'
+                component='form'
+                spacing={1.5}
+                onSubmit={review}
+              >
                 <Typography variant='body2' color='text.secondary'>
                   This records an advisory decision. Purchase orders and inventory updates are handled separately.
                 </Typography>
                 <Grid container spacing={1.5}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField select label='Decision' size='small' fullWidth value={action} disabled={busy}
-                      onChange={(event) => { setAction(event.target.value as DecisionAction); setError('') }}>
+                    <TextField
+                      select
+                      label='Decision'
+                      size='small'
+                      fullWidth
+                      value={action}
+                      disabled={busy}
+                      onChange={(event) => {
+                        setAction(event.target.value as DecisionAction)
+                        setError('')
+                      }}
+                    >
                       <MenuItem value='approved'>Approve suggested order</MenuItem>
                       <MenuItem value='modified'>Modify quantity</MenuItem>
                       <MenuItem value='rejected'>Reject recommendation</MenuItem>
@@ -237,17 +286,36 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
                   </Grid>
                   {action === 'modified' && (
                     <Grid size={{ xs: 12, sm: 6 }}>
-                      <TextField label='Revised quantity' size='small' fullWidth required value={quantity} disabled={busy}
-                        onChange={(event) => { setQuantity(event.target.value); setError('') }}
+                      <TextField
+                        label='Revised quantity'
+                        size='small'
+                        fullWidth
+                        required
+                        value={quantity}
+                        disabled={busy}
+                        onChange={(event) => {
+                          setQuantity(event.target.value)
+                          setError('')
+                        }}
                         slotProps={{ htmlInput: { inputMode: 'numeric' } }}
-                        helperText={`Minimum ${formatQuantity(policy.minimum_order_quantity)} · Pack size ${formatQuantity(policy.pack_size)}`} />
+                        helperText={`Minimum ${formatQuantity(policy.minimum_order_quantity)} · Pack size ${formatQuantity(policy.pack_size)}`}
+                      />
                     </Grid>
                   )}
                 </Grid>
-                <TextField label={action === 'modified' ? 'Reason' : 'Reason (optional)'} multiline minRows={2}
-                  value={reason} disabled={busy} required={action === 'modified'}
-                  onChange={(event) => { setReason(event.target.value); setError('') }}
-                  slotProps={{ htmlInput: { maxLength: 2000 } }} />
+                <TextField
+                  label={action === 'modified' ? 'Reason' : 'Reason (optional)'}
+                  multiline
+                  minRows={2}
+                  value={reason}
+                  disabled={busy}
+                  required={action === 'modified'}
+                  onChange={(event) => {
+                    setReason(event.target.value)
+                    setError('')
+                  }}
+                  slotProps={{ htmlInput: { maxLength: 2000 } }}
+                />
               </Stack>
             ) : history}
             {error && <Alert severity='error' sx={{ mt: 2 }}>{error}</Alert>}
@@ -257,7 +325,14 @@ export default function RecommendationDetail({ recommendation, productLabel, onU
       <DialogActions>
         <Button onClick={onClose} disabled={busy}>Close</Button>
         {status === 'pending' && (
-          <Button type='submit' form='recommendation-review-form' variant='contained' loading={busy}>Record decision</Button>
+          <Button
+            type='submit'
+            form='recommendation-review-form'
+            variant='contained'
+            loading={busy}
+          >
+            Record decision
+          </Button>
         )}
       </DialogActions>
     </Dialog>

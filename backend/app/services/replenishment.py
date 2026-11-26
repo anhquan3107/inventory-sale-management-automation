@@ -13,7 +13,12 @@ from services.forecast_engine import resolve_run
 from services.recommendation_diagnostics import DIAGNOSTICS_RULES_VERSION, diagnose_recommendation
 
 
-def calculate_replenishment(forecasts: list[Decimal], on_hand: int, receipts: list[dict], policy: dict) -> dict:
+def calculate_replenishment(
+    forecasts: list[Decimal],
+    on_hand: int,
+    receipts: list[dict],
+    policy: dict,
+) -> dict:
     lead = policy["lead_time_weeks"]
     protection = lead + policy["review_interval_weeks"]
     if len(forecasts) < protection:
@@ -175,7 +180,12 @@ def validate_forecast_periods(forecasts: list[ForecastPrediction], decision_date
             raise ValueError("Forecast periods are not contiguous with the decision date")
 
 
-def review_recommendation(db: Session, recommendation_id: int, values: dict, user_id: int):
+def review_recommendation(
+    db: Session,
+    recommendation_id: int,
+    values: dict,
+    user_id: int,
+):
     row = db.scalar(select(InventoryRecommendation).where(
         InventoryRecommendation.id == recommendation_id).with_for_update())
     if row is None:
